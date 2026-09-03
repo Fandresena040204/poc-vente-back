@@ -127,6 +127,202 @@ sérialiseur, par viewset, par classe d'admin.
 - `POST /api/ventes/{id}/valider/` — action custom de validation d'une vente en brouillon
 - `GET /api/meta/{resource}/` — métadonnées introspectées d'une ressource (`ventes`, `products`, `customers`)
 
+### Récapitulatif des permissions par ressource
+
+| Ressource     | GET (liste/détail)     | POST                    | PUT/PATCH               | DELETE                   |
+|---------------|-------------------------|--------------------------|---------------------------|----------------------------|
+| `auth/register` | —                     | Public (`AllowAny`)      | —                          | —                           |
+| `auth/me`     | Connecté                | —                         | Connecté (son propre profil) | —                       |
+| `token`       | —                       | Public (`AllowAny`)      | —                          | —                           |
+| `customers`   | Connecté                | Connecté                 | Connecté                   | Connecté                    |
+| `products`    | Connecté                | Connecté                 | Connecté                   | Connecté                    |
+| `ventes`      | Connecté                | Connecté                 | Connecté                   | Connecté                    |
+| `roles`       | Admin (`is_staff`)      | Admin                    | Admin                      | Admin                       |
+| `users`       | Admin                   | — (pas de création directe, passer par `auth/register`) | — (utiliser `assign_role`/`remove_role`) | — |
+
+« Connecté » = n'importe quel utilisateur authentifié (token JWT valide), pas de notion de rôle
+métier vérifiée pour l'instant sur `customers`/`products`/`ventes` — c'est la prochaine étape si
+le POC est étendu (voir `TODO.md`).
+
+## Guide de test Postman
+
+Base URL locale : `http://localhost:8000`. Pense à libérer le port avant de tester
+(`python manage.py runserver` doit être le seul processus dessus).
+
+Créer une variable d'environnement Postman `base_url = http://localhost:8000` et une variable
+`access_token` (à remplir après le login/register) évite de retaper l'URL et le header à chaque
+requête. Dans les exemples ci-dessous, remplace `{{base_url}}` par du texte en dur si tu ne veux
+pas créer d'environnement.
+
+Pour chaque requête protégée, ajouter dans l'onglet **Headers** de Postman :
+
+```
+Authorization: Bearer <access_token>
+```
+
+(ou dans l'onglet **Auth** → Type `Bearer Token` → coller le token).
+
+---
+
+### 1. Inscription (sign up) — publique
+
+- **Méthode** : `POST`
+- **URL** : `{{base_url}}/api/auth/register/`
+- **Headers** : `Content-Type: application/json`
+- **Body (raw JSON)** :
+```json
+{
+  "username": "alice",
+  "email": "alice@example.com",
+  "password": "MotDePasseSolide123!"
+}
+```
+- **Réponse 201** :
+```json
+{
+  "user": { "id": 2, "username": "alice", "email": "alice@example.com" },
+  "access": "<jwt>",
+  "refresh": "<jwt>"
+}
+```
+Le mot de passe est validé par les règles Django (`validate_password`) : au moins 8 caractères,
+pas uniquement numérique, pas trop commun.
+
+### 2. Connexion (login)
+
+- **Méthode** : `POST`
+- **URL** : `{{base_url}}/api/token/`
+- **Headers** : `Content-Type: application/json`
+- **Body** :
+```json
+{
+  "username": "alice",
+  "password": "MotDePasseSolide123!"
+}
+```
+- **Réponse 200** : `{ "access": "<jwt>", "refresh": "<jwt>" }`. Copier `access` dans la variable
+  Postman `access_token`.
+
+### 3. Rafraîchir le token
+
+- **Méthode** : `POST`
+- **URL** : `{{base_url}}/api/token/refresh/`
+- **Body** :
+```json
+{ "refresh": "<refresh_token_obtenu_au_login>" }
+```
+- **Réponse 200** : `{ "access": "<nouveau_jwt>" }`
+
+### 4. Mon profil
+
+- **GET** `{{base_url}}/api/auth/me/` — headers : `Authorization: Bearer {{access_token}}`
+- **PATCH** `{{base_url}}/api/auth/me/` — même header, body :
+```json
+{ "first_name": "Alice", "last_name": "Martin" }
+```
+
+### 5. Clients (`customers`) — n'importe quel utilisateur connecté
+
+- **Créer** — `POST {{base_url}}/api/customers/`
+```json
+{
+  "name": "Acme Corp",
+  "email": "contact@acme.test",
+  "phone": "0123456789"
+}
+```
+- **Lister** — `GET {{base_url}}/api/customers/`
+- **Détail** — `GET {{base_url}}/api/customers/1/`
+- **Modifier** — `PATCH {{base_url}}/api/customers/1/` body : `{ "phone": "0698765432" }`
+- **Supprimer** — `DELETE {{base_url}}/api/customers/1/`
+
+Toutes ces requêtes nécessitent le header `Authorization: Bearer {{access_token}}`.
+
+### 6. Produits (`products`) — n'importe quel utilisateur connecté
+
+- **Créer** — `POST {{base_url}}/api/products/`
+```json
+{
+  "name": "Clavier mécanique",
+  "sku": "SKU-001",
+  "default_price": "49.90"
+}
+```
+- **Lister** — `GET {{base_url}}/api/products/`
+- **Détail** — `GET {{base_url}}/api/products/1/`
+- **Modifier** — `PATCH {{base_url}}/api/products/1/` body : `{ "default_price": "39.90" }`
+- **Supprimer** — `DELETE {{base_url}}/api/products/1/`
+
+### 7. Ventes (`ventes`) — n'importe quel utilisateur connecté
+
+- **Créer une vente avec lignes** — `POST {{base_url}}/api/ventes/`
+```json
+{
+  "customer": 1,
+  "lines": [
+    { "product": 1, "quantity": "2", "unit_price": "49.90" },
+    { "product": 2, "quantity": "1", "unit_price": "15.00" }
+  ]
+}
+```
+  `customer` et `product` sont les `id` créés aux étapes 5 et 6. `total` est calculé
+  automatiquement côté serveur (ne pas l'envoyer, il est en lecture seule).
+- **Lister** — `GET {{base_url}}/api/ventes/` (filtres possibles : `?status=draft`,
+  `?customer=1`, `?ordering=-created_at`, `?search=acme`)
+- **Détail** — `GET {{base_url}}/api/ventes/1/`
+- **Modifier les lignes** — `PATCH {{base_url}}/api/ventes/1/`
+```json
+{
+  "lines": [
+    { "id": 1, "quantity": "3", "unit_price": "49.90", "product": 1 }
+  ]
+}
+```
+  Une ligne avec `id` existant est mise à jour, une ligne sans `id` est créée, une ligne
+  existante absente du tableau envoyé est supprimée.
+- **Supprimer** — `DELETE {{base_url}}/api/ventes/1/`
+- **Valider une vente (brouillon → validée)** — `POST {{base_url}}/api/ventes/1/valider/` (pas de
+  body). Renvoie 400 si la vente n'est pas en statut `draft`.
+
+### 8. Rôles (`roles`) — admin uniquement (`is_staff=True`)
+
+Utilise le compte admin créé localement (`testuser` / `TestPass123!`, ou ton propre superuser
+via `python manage.py createsuperuser`), connecte-toi via l'étape 2 pour récupérer son token.
+
+- **Créer** — `POST {{base_url}}/api/roles/` body : `{ "name": "manager" }`
+- **Lister** — `GET {{base_url}}/api/roles/`
+- **Modifier** — `PATCH {{base_url}}/api/roles/1/` body : `{ "name": "supervisor" }`
+- **Supprimer** — `DELETE {{base_url}}/api/roles/1/`
+
+Avec un token d'utilisateur non-admin, ces requêtes renvoient `403 Forbidden`.
+
+### 9. Utilisateurs et assignation de rôle (`users`) — admin uniquement
+
+- **Lister** — `GET {{base_url}}/api/users/` → renvoie chaque utilisateur avec son tableau `roles`
+- **Détail** — `GET {{base_url}}/api/users/2/`
+- **Assigner un rôle** — `POST {{base_url}}/api/users/2/assign_role/`
+```json
+{ "role": "manager" }
+```
+  Renvoie `404` si le rôle n'existe pas encore (le créer d'abord via l'étape 8).
+- **Retirer un rôle** — `POST {{base_url}}/api/users/2/remove_role/`
+```json
+{ "role": "manager" }
+```
+
+Il n'y a pas de création/suppression d'utilisateur via `/api/users/` : la création passe par
+`/api/auth/register/` (étape 1). C'est un choix volontaire pour ce POC — à faire évoluer si un
+vrai back-office de gestion des comptes est nécessaire.
+
+### 10. Métadonnées (introspection)
+
+- `GET {{base_url}}/api/meta/ventes/`
+- `GET {{base_url}}/api/meta/products/`
+- `GET {{base_url}}/api/meta/customers/`
+
+Aucun body, retourne la structure des champs du sérialiseur correspondant (utile pour un futur
+frontend générique).
+
 ## Suivi de projet
 
 Voir `TODO.md` à la racine pour l'état d'avancement.
