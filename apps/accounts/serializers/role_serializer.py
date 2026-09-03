@@ -1,8 +1,9 @@
-from django.contrib.auth.models import Group
 from rest_framework import serializers
+
+from apps.accounts.models import Role
 
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Group
+        model = Role
         fields = ['id', 'name']

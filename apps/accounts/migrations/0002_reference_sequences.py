@@ -12,4 +12,12 @@ class Migration(migrations.Migration):
             sql="CREATE SEQUENCE IF NOT EXISTS customer_id_seq;",
             reverse_sql="DROP SEQUENCE IF EXISTS customer_id_seq;",
         ),
+        migrations.RunSQL(
+            sql="CREATE SEQUENCE IF NOT EXISTS role_id_seq;",
+            reverse_sql="DROP SEQUENCE IF EXISTS role_id_seq;",
+        ),
+        migrations.RunSQL(
+            sql="CREATE SEQUENCE IF NOT EXISTS user_id_seq;",
+            reverse_sql="DROP SEQUENCE IF EXISTS user_id_seq;",
+        ),
     ]
