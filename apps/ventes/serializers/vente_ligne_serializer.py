@@ -4,7 +4,7 @@ from apps.ventes.models import VenteLigne
 
 
 class VenteLigneSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(required=False)
+    id = serializers.CharField(required=False)
 
     class Meta:
         model = VenteLigne
