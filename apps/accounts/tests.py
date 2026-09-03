@@ -58,8 +58,27 @@ def test_me_returns_current_user():
     assert response.data['username'] == 'alice'
 
 
-def test_authenticated_user_can_manage_customers():
+def test_user_role_can_create_and_read_customers_but_not_delete():
     user = User.objects.create_user(username='bob', password='pass1234')
+    user.roles.add(Role.objects.get(name='user'))
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post(
+        '/api/customers/',
+        {'name': 'Acme Corp', 'email': 'contact@acme.test'},
+        format='json',
+    )
+    assert response.status_code == 201, response.data
+    assert response.data['name'] == 'Acme Corp'
+
+    customer_id = response.data['id']
+    assert client.get('/api/customers/').status_code == 200
+    assert client.delete(f'/api/customers/{customer_id}/').status_code == 403
+
+
+def test_authenticated_user_without_role_is_forbidden_on_customers():
+    user = User.objects.create_user(username='no_permission_user', password='pass1234')
     client = APIClient()
     client.force_authenticate(user=user)
 
@@ -69,11 +88,7 @@ def test_authenticated_user_can_manage_customers():
         format='json',
     )
 
-    assert response.status_code == 201, response.data
-    assert response.data['name'] == 'Acme Corp'
-
-    list_response = client.get('/api/customers/')
-    assert list_response.status_code == 200
+    assert response.status_code == 403
 
 
 def test_customers_require_authentication():

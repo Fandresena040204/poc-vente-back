@@ -2,12 +2,14 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.accounts.permissions import HasRolePermission
 from apps.ventes.models import Vente
 from apps.ventes.serializers import VenteSerializer
 
 
 class VenteViewSet(viewsets.ModelViewSet):
     serializer_class = VenteSerializer
+    permission_classes = [HasRolePermission]
     filterset_fields = ['status', 'customer']
     search_fields = ['customer__name']
     ordering_fields = ['created_at', 'total']

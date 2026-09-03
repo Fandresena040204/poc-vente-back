@@ -159,7 +159,7 @@ Pour vérifier que ça a fonctionné, sans toucher à la base : `GET /api/auth/m
 pour l'utilisateur connecté — n'importe qui peut vérifier ses propres droits via ce endpoint. Un
 admin peut aussi vérifier via `GET /api/users/{id}/`.
 
-### Ressources métier (authentification requise)
+### Ressources métier (permissions granulées par rôle)
 
 - `GET/POST /api/customers/`, `GET/PUT/PATCH/DELETE /api/customers/{id}/` — CRUD clients
 - `GET/POST /api/products/`, `GET/PUT/PATCH/DELETE /api/products/{id}/` — CRUD produits
@@ -168,6 +168,51 @@ admin peut aussi vérifier via `GET /api/users/{id}/`.
 - `POST /api/ventes/{id}/valider/` — action custom de validation d'une vente en brouillon
 - `GET /api/meta/{resource}/` — métadonnées introspectées d'une ressource (`ventes`, `products`, `customers`)
 
+### Système de permissions
+
+Les ressources métier (`customers`, `products`, `ventes`) ne sont plus juste "réservées aux
+connectés" — chaque méthode HTTP nécessite une **permission Django** précise (`add_x`, `view_x`,
+`change_x`, `delete_x`, auto-générées par modèle), elle-même attribuée à un ou plusieurs **rôles**,
+eux-mêmes assignés aux utilisateurs :
+
+```
+Permission (Django, auto-générée : add_vente, view_vente, change_vente, delete_vente, ...)
+    ↓ ManyToMany
+Role (admin, user, editor, ou un rôle personnalisé créé via /api/roles/)
+    ↓ ManyToMany
+User (peut avoir plusieurs rôles à la fois — leurs permissions se cumulent)
+```
+
+La classe `HasRolePermission` traduit l'action du ViewSet en permission requise :
+
+| Action DRF                | Permission requise | Méthode HTTP    |
+|----------------------------|---------------------|-----------------|
+| `list` / `retrieve`        | `view_<modèle>`     | GET             |
+| `create`                   | `add_<modèle>`      | POST            |
+| `update` / `partial_update`| `change_<modèle>`   | PUT / PATCH     |
+| `destroy`                  | `delete_<modèle>`   | DELETE          |
+| action custom (ex: `valider`) | `change_<modèle>` (par défaut) | POST |
+
+Un utilisateur a accès à l'action si **au moins un de ses rôles** possède la permission
+correspondante (`user.roles.filter(permissions__codename=...).exists()`).
+
+**3 rôles créés par défaut** (migration `accounts.0006_seed_role_permissions`), sur `customers`,
+`products` et `ventes` :
+
+| Rôle     | Peut faire                          |
+|----------|--------------------------------------|
+| `admin`  | Tout (add/view/change/delete)        |
+| `editor` | Créer, lire, modifier (pas supprimer) |
+| `user`   | Créer et lire seulement               |
+
+Un utilisateur peut avoir **plusieurs rôles simultanément** (`roles` est un `ManyToManyField`) —
+leurs permissions se cumulent. Exemple : un utilisateur avec le rôle `user` (create+read) *et* un
+rôle personnalisé n'accordant que `delete_customer` pourra créer, lire **et** supprimer des
+clients, mais toujours pas les modifier.
+
+`roles`/`users` (gestion des rôles eux-mêmes) restent séparément gérés par `IsAdminRole` (rôle
+`admin` uniquement), pas par ce système générique — voir plus haut.
+
 ### Récapitulatif des permissions par ressource
 
 | Ressource     | GET (liste/détail)     | POST                    | PUT/PATCH               | DELETE                   |
@@ -175,15 +220,13 @@ admin peut aussi vérifier via `GET /api/users/{id}/`.
 | `auth/register` | —                     | Public (`AllowAny`)      | —                          | —                           |
 | `auth/me`     | Connecté                | —                         | Connecté (son propre profil) | —                       |
 | `token`       | —                       | Public (`AllowAny`)      | —                          | —                           |
-| `customers`   | Connecté                | Connecté                 | Connecté                   | Connecté                    |
-| `products`    | Connecté                | Connecté                 | Connecté                   | Connecté                    |
-| `ventes`      | Connecté                | Connecté                 | Connecté                   | Connecté                    |
+| `customers`   | Rôle avec `view_customer` | Rôle avec `add_customer` | Rôle avec `change_customer` | Rôle avec `delete_customer` |
+| `products`    | Rôle avec `view_product`  | Rôle avec `add_product`  | Rôle avec `change_product`  | Rôle avec `delete_product`  |
+| `ventes`      | Rôle avec `view_vente`    | Rôle avec `add_vente`    | Rôle avec `change_vente`    | Rôle avec `delete_vente`    |
 | `roles`       | Rôle `admin`            | Rôle `admin`             | Rôle `admin`               | Rôle `admin`                |
 | `users`       | Rôle `admin`            | — (pas de création directe, passer par `auth/register`) | — (utiliser `assign_role`/`remove_role`) | — |
 
-« Connecté » = n'importe quel utilisateur authentifié (token JWT valide), pas de notion de rôle
-métier vérifiée pour l'instant sur `customers`/`products`/`ventes` — c'est la prochaine étape si
-le POC est étendu (voir `TODO.md`). « Rôle `admin` » = l'utilisateur a le rôle `admin` assigné via
+« Rôle `admin` » = l'utilisateur a le rôle `admin` assigné via
 `python manage.py assign_admin_role <username>`.
 
 ## Guide de test Postman
@@ -263,9 +306,12 @@ pas uniquement numérique, pas trop commun.
 { "first_name": "Alice", "last_name": "Martin" }
 ```
 
-### 5. Clients (`customers`) — n'importe quel utilisateur connecté
+### 5. Clients (`customers`) — nécessite le rôle approprié (`view_customer`/`add_customer`/...)
 
-- **Créer** — `POST {{base_url}}/api/customers/`
+Un utilisateur `role_only_admin` type n'a pas forcément la permission ici — utilise un compte
+avec le rôle `admin`, `editor` ou `user` (créés par défaut), ou crée un rôle sur-mesure (étape 8).
+
+- **Créer** — `POST {{base_url}}/api/customers/` (nécessite `add_customer`)
 ```json
 {
   "name": "Acme Corp",
@@ -273,14 +319,16 @@ pas uniquement numérique, pas trop commun.
   "phone": "0123456789"
 }
 ```
-- **Lister** — `GET {{base_url}}/api/customers/`
-- **Détail** — `GET {{base_url}}/api/customers/CUS00001/`
+- **Lister** — `GET {{base_url}}/api/customers/` (nécessite `view_customer`)
+- **Détail** — `GET {{base_url}}/api/customers/CUS00001/` (nécessite `view_customer`)
 - **Modifier** — `PATCH {{base_url}}/api/customers/CUS00001/` body : `{ "phone": "0698765432" }`
-- **Supprimer** — `DELETE {{base_url}}/api/customers/CUS00001/`
+  (nécessite `change_customer` — le rôle `user` par défaut ne l'a pas, renvoie 403)
+- **Supprimer** — `DELETE {{base_url}}/api/customers/CUS00001/` (nécessite `delete_customer` —
+  seul le rôle `admin` par défaut l'a)
 
 Toutes ces requêtes nécessitent le header `Authorization: Bearer {{access_token}}`.
 
-### 6. Produits (`products`) — n'importe quel utilisateur connecté
+### 6. Produits (`products`) — mêmes règles de permission que `customers`
 
 - **Créer** — `POST {{base_url}}/api/products/`
 ```json
@@ -295,7 +343,10 @@ Toutes ces requêtes nécessitent le header `Authorization: Bearer {{access_toke
 - **Modifier** — `PATCH {{base_url}}/api/products/PRD00001/` body : `{ "default_price": "39.90" }`
 - **Supprimer** — `DELETE {{base_url}}/api/products/PRD00001/`
 
-### 7. Ventes (`ventes`) — n'importe quel utilisateur connecté
+### 7. Ventes (`ventes`) — mêmes règles de permission (`view_vente`/`add_vente`/`change_vente`/`delete_vente`)
+
+`POST /api/ventes/{id}/valider/` nécessite `change_vente` (le rôle `user` ne l'a pas, `editor` et
+`admin` l'ont).
 
 - **Créer une vente avec lignes** — `POST {{base_url}}/api/ventes/`
 ```json
@@ -337,13 +388,25 @@ python manage.py assign_admin_role testuser
 
 Connecte-toi ensuite via l'étape 2 pour récupérer son token.
 
-- **Créer** — `POST {{base_url}}/api/roles/` body : `{ "name": "manager" }`
-- **Lister** — `GET {{base_url}}/api/roles/`
-- **Modifier** — `PATCH {{base_url}}/api/roles/ROL00001/` body : `{ "name": "supervisor" }`
-- **Supprimer** — `DELETE {{base_url}}/api/roles/ROL00001/`
+- **Créer un rôle avec des permissions** — `POST {{base_url}}/api/roles/`
+```json
+{
+  "name": "manager",
+  "permissions": ["view_customer", "add_customer", "change_customer"]
+}
+```
+  `permissions` prend une liste de `codename` Django (`view_<modèle>`, `add_<modèle>`,
+  `change_<modèle>`, `delete_<modèle>` — pour `customer`, `product` ou `vente`).
+- **Lister** — `GET {{base_url}}/api/roles/` (chaque rôle renvoie sa liste de `permissions`)
+- **Modifier les permissions d'un rôle** — `PATCH {{base_url}}/api/roles/ROL00003/` body :
+```json
+{ "permissions": ["view_customer", "add_customer", "delete_customer"] }
+```
+  (remplace entièrement la liste — pour ajouter une seule permission à un rôle existant, renvoyer
+  la liste complète souhaitée)
+- **Supprimer** — `DELETE {{base_url}}/api/roles/ROL00003/`
 
-Avec un token d'utilisateur sans le rôle `admin` (et non-superuser), ces requêtes renvoient
-`403 Forbidden`.
+Avec un token d'utilisateur sans le rôle `admin`, ces requêtes renvoient `403 Forbidden`.
 
 ### 9. Utilisateurs et assignation de rôle (`users`) — réservé au rôle `admin`
 
