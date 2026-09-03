@@ -103,12 +103,29 @@ sérialiseur, par viewset, par classe d'admin.
 
 ## Endpoints principaux
 
+### Authentification
+
+- `POST /api/auth/register/` — inscription (crée un utilisateur, renvoie directement les tokens JWT)
+- `POST /api/token/` — connexion (login), renvoie `access`/`refresh`
+- `POST /api/token/refresh/` — renouvelle un `access` token à partir du `refresh`
+- `GET/PATCH /api/auth/me/` — consulter/modifier son propre profil (utilisateur connecté)
+
+### Utilisateurs et rôles (réservé aux administrateurs, `is_staff=True`)
+
+- `GET /api/users/` — liste des utilisateurs (avec leurs rôles)
+- `GET /api/users/{id}/` — détail d'un utilisateur
+- `POST /api/users/{id}/assign_role/` — assigne un rôle (`{"role": "manager"}`)
+- `POST /api/users/{id}/remove_role/` — retire un rôle
+- `GET/POST /api/roles/`, `GET/PUT/PATCH/DELETE /api/roles/{id}/` — CRUD des rôles (`Group` Django)
+
+### Ressources métier (authentification requise)
+
+- `GET/POST /api/customers/`, `GET/PUT/PATCH/DELETE /api/customers/{id}/` — CRUD clients
+- `GET/POST /api/products/`, `GET/PUT/PATCH/DELETE /api/products/{id}/` — CRUD produits
 - `GET/POST /api/ventes/` — liste/création de ventes (avec lignes imbriquées)
 - `GET/PUT/PATCH/DELETE /api/ventes/{id}/` — détail d'une vente
 - `POST /api/ventes/{id}/valider/` — action custom de validation d'une vente en brouillon
-- `GET/POST /api/products/` — CRUD produits
-- `GET /api/meta/{resource}/` — métadonnées introspectées d'une ressource (`ventes`, `products`)
-- `POST /api/token/`, `POST /api/token/refresh/` — authentification JWT
+- `GET /api/meta/{resource}/` — métadonnées introspectées d'une ressource (`ventes`, `products`, `customers`)
 
 ## Suivi de projet
 

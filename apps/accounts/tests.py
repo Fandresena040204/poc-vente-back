@@ -47,3 +47,82 @@ def test_me_returns_current_user():
 
     assert response.status_code == 200
     assert response.data['username'] == 'alice'
+
+
+def test_authenticated_user_can_manage_customers():
+    user = User.objects.create_user(username='bob', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post(
+        '/api/customers/',
+        {'name': 'Acme Corp', 'email': 'contact@acme.test'},
+        format='json',
+    )
+
+    assert response.status_code == 201, response.data
+    assert response.data['name'] == 'Acme Corp'
+
+    list_response = client.get('/api/customers/')
+    assert list_response.status_code == 200
+
+
+def test_customers_require_authentication():
+    client = APIClient()
+    response = client.get('/api/customers/')
+    assert response.status_code == 401
+
+
+def test_only_admin_can_manage_roles():
+    user = User.objects.create_user(username='regular', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post('/api/roles/', {'name': 'manager'}, format='json')
+
+    assert response.status_code == 403
+
+
+def test_admin_can_create_role_and_assign_it_to_user():
+    admin = User.objects.create_user(username='admin', password='pass1234', is_staff=True)
+    target_user = User.objects.create_user(username='employee', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    role_response = client.post('/api/roles/', {'name': 'manager'}, format='json')
+    assert role_response.status_code == 201
+
+    assign_response = client.post(
+        f'/api/users/{target_user.id}/assign_role/', {'role': 'manager'}, format='json'
+    )
+    assert assign_response.status_code == 200
+    assert 'manager' in assign_response.data['roles']
+
+    remove_response = client.post(
+        f'/api/users/{target_user.id}/remove_role/', {'role': 'manager'}, format='json'
+    )
+    assert remove_response.status_code == 200
+    assert 'manager' not in remove_response.data['roles']
+
+
+def test_assign_unknown_role_returns_404():
+    admin = User.objects.create_user(username='admin2', password='pass1234', is_staff=True)
+    target_user = User.objects.create_user(username='employee2', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        f'/api/users/{target_user.id}/assign_role/', {'role': 'inconnu'}, format='json'
+    )
+
+    assert response.status_code == 404
+
+
+def test_users_list_requires_admin():
+    user = User.objects.create_user(username='regular2', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get('/api/users/')
+
+    assert response.status_code == 403
