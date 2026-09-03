@@ -103,6 +103,22 @@ sérialiseur, par viewset, par classe d'admin.
 
 ## Endpoints principaux
 
+### Format des identifiants
+
+`Customer`, `Product`, `Vente` et `VenteLigne` utilisent un identifiant texte lisible
+(`PREFIXE` + numéro séquentiel sur 5 chiffres) comme clé primaire, généré côté serveur via une
+séquence PostgreSQL dédiée — jamais fourni par le client :
+
+| Ressource   | Préfixe | Exemple    |
+|-------------|---------|------------|
+| Customer    | `CUS`   | `CUS00001` |
+| Product     | `PRD`   | `PRD00001` |
+| Vente       | `VNT`   | `VNT00001` |
+| VenteLigne  | `LGN`   | `LGN00001` |
+
+`User` (compte de connexion Django) garde un `id` numérique classique — seules les ressources
+métier sont concernées par ce format.
+
 ### Authentification
 
 - `POST /api/auth/register/` — inscription (crée un utilisateur, renvoie directement les tokens JWT)
@@ -232,9 +248,9 @@ pas uniquement numérique, pas trop commun.
 }
 ```
 - **Lister** — `GET {{base_url}}/api/customers/`
-- **Détail** — `GET {{base_url}}/api/customers/1/`
-- **Modifier** — `PATCH {{base_url}}/api/customers/1/` body : `{ "phone": "0698765432" }`
-- **Supprimer** — `DELETE {{base_url}}/api/customers/1/`
+- **Détail** — `GET {{base_url}}/api/customers/CUS00001/`
+- **Modifier** — `PATCH {{base_url}}/api/customers/CUS00001/` body : `{ "phone": "0698765432" }`
+- **Supprimer** — `DELETE {{base_url}}/api/customers/CUS00001/`
 
 Toutes ces requêtes nécessitent le header `Authorization: Bearer {{access_token}}`.
 
@@ -249,40 +265,40 @@ Toutes ces requêtes nécessitent le header `Authorization: Bearer {{access_toke
 }
 ```
 - **Lister** — `GET {{base_url}}/api/products/`
-- **Détail** — `GET {{base_url}}/api/products/1/`
-- **Modifier** — `PATCH {{base_url}}/api/products/1/` body : `{ "default_price": "39.90" }`
-- **Supprimer** — `DELETE {{base_url}}/api/products/1/`
+- **Détail** — `GET {{base_url}}/api/products/PRD00001/`
+- **Modifier** — `PATCH {{base_url}}/api/products/PRD00001/` body : `{ "default_price": "39.90" }`
+- **Supprimer** — `DELETE {{base_url}}/api/products/PRD00001/`
 
 ### 7. Ventes (`ventes`) — n'importe quel utilisateur connecté
 
 - **Créer une vente avec lignes** — `POST {{base_url}}/api/ventes/`
 ```json
 {
-  "customer": 1,
+  "customer": "CUS00001",
   "lines": [
-    { "product": 1, "quantity": "2", "unit_price": "49.90" },
-    { "product": 2, "quantity": "1", "unit_price": "15.00" }
+    { "product": "PRD00001", "quantity": "2", "unit_price": "49.90" },
+    { "product": "PRD00002", "quantity": "1", "unit_price": "15.00" }
   ]
 }
 ```
-  `customer` et `product` sont les `id` créés aux étapes 5 et 6. `total` est calculé
+  `customer` et `product` sont les `id` (codes) créés aux étapes 5 et 6. `total` est calculé
   automatiquement côté serveur (ne pas l'envoyer, il est en lecture seule).
 - **Lister** — `GET {{base_url}}/api/ventes/` (filtres possibles : `?status=draft`,
-  `?customer=1`, `?ordering=-created_at`, `?search=acme`)
-- **Détail** — `GET {{base_url}}/api/ventes/1/`
-- **Modifier les lignes** — `PATCH {{base_url}}/api/ventes/1/`
+  `?customer=CUS00001`, `?ordering=-created_at`, `?search=acme`)
+- **Détail** — `GET {{base_url}}/api/ventes/VNT00001/`
+- **Modifier les lignes** — `PATCH {{base_url}}/api/ventes/VNT00001/`
 ```json
 {
   "lines": [
-    { "id": 1, "quantity": "3", "unit_price": "49.90", "product": 1 }
+    { "id": "LGN00001", "quantity": "3", "unit_price": "49.90", "product": "PRD00001" }
   ]
 }
 ```
   Une ligne avec `id` existant est mise à jour, une ligne sans `id` est créée, une ligne
   existante absente du tableau envoyé est supprimée.
-- **Supprimer** — `DELETE {{base_url}}/api/ventes/1/`
-- **Valider une vente (brouillon → validée)** — `POST {{base_url}}/api/ventes/1/valider/` (pas de
-  body). Renvoie 400 si la vente n'est pas en statut `draft`.
+- **Supprimer** — `DELETE {{base_url}}/api/ventes/VNT00001/`
+- **Valider une vente (brouillon → validée)** — `POST {{base_url}}/api/ventes/VNT00001/valider/`
+  (pas de body). Renvoie 400 si la vente n'est pas en statut `draft`.
 
 ### 8. Rôles (`roles`) — admin uniquement (`is_staff=True`)
 
