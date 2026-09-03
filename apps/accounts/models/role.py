@@ -1,3 +1,4 @@
+from django.contrib.auth.models import Permission
 from django.db import models
 
 from apps.core.utils import generate_reference
@@ -6,6 +7,7 @@ from apps.core.utils import generate_reference
 class Role(models.Model):
     id = models.CharField(max_length=20, primary_key=True, editable=False)
     name = models.CharField(max_length=100, unique=True)
+    permissions = models.ManyToManyField(Permission, related_name='roles', blank=True)
 
     class Meta:
         ordering = ['name']

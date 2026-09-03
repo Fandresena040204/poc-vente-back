@@ -30,6 +30,11 @@ class UserAdmin(DjangoUserAdmin):
     ordering = ['username']
 
 
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name']
+    filter_horizontal = ('permissions',)
+
+
 admin.site.register(Customer)
-admin.site.register(Role)
+admin.site.register(Role, RoleAdmin)
 admin.site.register(User, UserAdmin)
