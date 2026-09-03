@@ -1,21 +1,8 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from apps.ventes.models import Product, Vente, VenteLigne
-
-
-class ProductSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = ['id', 'name', 'sku', 'default_price']
-
-
-class VenteLigneSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField(required=False)
-
-    class Meta:
-        model = VenteLigne
-        fields = ['id', 'product', 'quantity', 'unit_price']
+from apps.ventes.models import Vente, VenteLigne
+from apps.ventes.serializers.vente_ligne_serializer import VenteLigneSerializer
 
 
 class VenteSerializer(serializers.ModelSerializer):
