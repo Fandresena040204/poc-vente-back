@@ -2,15 +2,8 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.ventes.models import Product, Vente
-from apps.ventes.serializers import ProductSerializer, VenteSerializer
-
-
-class ProductViewSet(viewsets.ModelViewSet):
-    serializer_class = ProductSerializer
-    queryset = Product.objects.all()
-    search_fields = ['name', 'sku']
-    ordering_fields = ['name', 'default_price']
+from apps.ventes.models import Vente
+from apps.ventes.serializers import VenteSerializer
 
 
 class VenteViewSet(viewsets.ModelViewSet):
