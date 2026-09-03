@@ -140,8 +140,10 @@ métier.
 #### Comment savoir/faire qu'un utilisateur "a" le rôle admin
 
 Le rôle `Role` (table `accounts_role`) est la **seule source de vérité** pour ces deux ressources.
-`is_staff`/`is_superuser` ne jouent aucun rôle ici — ce sont des flags Django qui ne servent qu'à
-se connecter à `/admin/` (l'interface web native). La permission `IsAdminRole` vérifie uniquement
+`User` n'a même plus de champ `is_superuser` en base (retiré — Django ne fournit pas de notion de
+superutilisateur en dehors de son propre système de permissions, qu'on n'utilise pas ici). Seul
+`is_staff` subsiste, uniquement pour se connecter à `/admin/` (l'interface web native) — aucun lien
+avec les permissions de l'API JSON. La permission `IsAdminRole` vérifie uniquement
 `user.roles.filter(name='admin').exists()`.
 
 Un rôle `admin` est **créé automatiquement par migration** (`accounts.0003_seed_admin_role`), donc

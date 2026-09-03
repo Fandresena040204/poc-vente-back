@@ -137,7 +137,7 @@ def test_users_list_requires_admin():
     assert response.status_code == 403
 
 
-def test_admin_role_grants_access_without_is_staff_or_is_superuser():
+def test_admin_role_grants_access_without_is_staff():
     user = make_admin(User.objects.create_user(username='role_only_admin', password='pass1234'))
     client = APIClient()
     client.force_authenticate(user=user)
@@ -146,7 +146,6 @@ def test_admin_role_grants_access_without_is_staff_or_is_superuser():
 
     assert response.status_code == 200
     assert user.is_staff is False
-    assert user.is_superuser is False
 
 
 def test_regular_user_without_admin_role_is_forbidden():
