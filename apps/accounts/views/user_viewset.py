@@ -1,9 +1,10 @@
 from django.contrib.auth import get_user_model
-from rest_framework import permissions, status, viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.models import Role
+from apps.accounts.permissions import IsAdminRole
 from apps.accounts.serializers import UserListSerializer
 
 User = get_user_model()
@@ -12,7 +13,7 @@ User = get_user_model()
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserListSerializer
     queryset = User.objects.all().prefetch_related('roles')
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def _set_role(self, request, pk, action_name):
         user = self.get_object()
