@@ -5,9 +5,7 @@ User = get_user_model()
 
 
 class UserListSerializer(serializers.ModelSerializer):
-    roles = serializers.SlugRelatedField(
-        source='groups', slug_field='name', many=True, read_only=True
-    )
+    roles = serializers.SlugRelatedField(slug_field='name', many=True, read_only=True)
 
     class Meta:
         model = User
