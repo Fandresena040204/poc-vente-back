@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db import models
+from django_fsm import FSMField, transition
 
 from apps.accounts.models import Customer
 from apps.core.models import AuditedModel
@@ -16,7 +17,7 @@ class VenteStatus(models.TextChoices):
 class Vente(AuditedModel):
     id = models.CharField(max_length=20, primary_key=True, editable=False)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='ventes')
-    status = models.CharField(max_length=20, choices=VenteStatus.choices, default=VenteStatus.DRAFT)
+    status = FSMField(default=VenteStatus.DRAFT, choices=VenteStatus.choices)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     class Meta:
@@ -37,8 +38,10 @@ class Vente(AuditedModel):
         self.total = total
         self.save(update_fields=['total', 'updated_at'])
 
+    @transition(field=status, source=VenteStatus.DRAFT, target=VenteStatus.VALIDATED)
     def validate_vente(self):
-        if self.status != VenteStatus.DRAFT:
-            raise ValueError("Seule une vente en brouillon peut être validée.")
-        self.status = VenteStatus.VALIDATED
-        self.save(update_fields=['status', 'updated_at'])
+        pass
+
+    @transition(field=status, source=VenteStatus.VALIDATED, target=VenteStatus.CANCELLED)
+    def cancel_vente(self):
+        pass
