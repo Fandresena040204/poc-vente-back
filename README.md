@@ -408,6 +408,10 @@ Connecte-toi ensuite via l'étape 2 pour récupérer son token.
 
 Avec un token d'utilisateur sans le rôle `admin`, ces requêtes renvoient `403 Forbidden`.
 
+Alternative sans passer par l'API : `/admin/accounts/role/{id}/change/` affiche les permissions
+dans un widget double-liste (`filter_horizontal`) — pratique pour cocher/décocher visuellement
+plutôt que de retaper la liste complète des `codename` à chaque `PATCH`.
+
 ### 9. Utilisateurs et assignation de rôle (`users`) — réservé au rôle `admin`
 
 - **Lister** — `GET {{base_url}}/api/users/` → renvoie chaque utilisateur avec son tableau `roles`
@@ -422,9 +426,24 @@ Avec un token d'utilisateur sans le rôle `admin`, ces requêtes renvoient `403 
 { "role": "manager" }
 ```
 
+**Donner plusieurs rôles à un même utilisateur** : `assign_role` ajoute un rôle sans toucher aux
+autres (contrairement à `permissions` sur `/api/roles/` qui remplace toute la liste) — il suffit
+d'appeler l'action une fois par rôle à cumuler :
+```
+POST {{base_url}}/api/users/USR00002/assign_role/  { "role": "editor" }
+POST {{base_url}}/api/users/USR00002/assign_role/  { "role": "user" }
+```
+`USR00002` a alors les deux rôles, et cumule leurs permissions. Vérifier avec
+`GET {{base_url}}/api/users/USR00002/` (admin) ou `GET {{base_url}}/api/auth/me/` (l'utilisateur
+lui-même) — les deux renvoient le tableau `roles`.
+
 Il n'y a pas de création/suppression d'utilisateur via `/api/users/` : la création passe par
 `/api/auth/register/` (étape 1). C'est un choix volontaire pour ce POC — à faire évoluer si un
 vrai back-office de gestion des comptes est nécessaire.
+
+Alternative sans passer par l'API : `/admin/accounts/user/{id}/change/`, section "Permissions",
+champ `roles` en double-liste — sélection multiple directe, pratique pour assigner plusieurs
+rôles d'un coup sans faire un appel par rôle.
 
 ### 10. Métadonnées (introspection)
 
