@@ -105,9 +105,9 @@ sérialiseur, par viewset, par classe d'admin.
 
 ### Format des identifiants
 
-`Customer`, `Product`, `Vente` et `VenteLigne` utilisent un identifiant texte lisible
-(`PREFIXE` + numéro séquentiel sur 5 chiffres) comme clé primaire, généré côté serveur via une
-séquence PostgreSQL dédiée — jamais fourni par le client :
+Toutes les ressources utilisent un identifiant texte lisible (`PREFIXE` + numéro séquentiel sur
+5 chiffres) comme clé primaire, généré côté serveur via une séquence PostgreSQL dédiée — jamais
+fourni par le client :
 
 | Ressource   | Préfixe | Exemple    |
 |-------------|---------|------------|
@@ -115,9 +115,12 @@ séquence PostgreSQL dédiée — jamais fourni par le client :
 | Product     | `PRD`   | `PRD00001` |
 | Vente       | `VNT`   | `VNT00001` |
 | VenteLigne  | `LGN`   | `LGN00001` |
+| User        | `USR`   | `USR00001` |
+| Role        | `ROL`   | `ROL00001` |
 
-`User` (compte de connexion Django) garde un `id` numérique classique — seules les ressources
-métier sont concernées par ce format.
+`User` est un modèle Django personnalisé (`AUTH_USER_MODEL = 'accounts.User'`), et `Role`
+remplace le `Group` Django par défaut — les deux suivent donc le même format que les ressources
+métier.
 
 ### Authentification
 
@@ -196,7 +199,7 @@ Authorization: Bearer <access_token>
 - **Réponse 201** :
 ```json
 {
-  "user": { "id": 2, "username": "alice", "email": "alice@example.com" },
+  "user": { "id": "USR00002", "username": "alice", "email": "alice@example.com" },
   "access": "<jwt>",
   "refresh": "<jwt>"
 }
@@ -307,21 +310,21 @@ via `python manage.py createsuperuser`), connecte-toi via l'étape 2 pour récup
 
 - **Créer** — `POST {{base_url}}/api/roles/` body : `{ "name": "manager" }`
 - **Lister** — `GET {{base_url}}/api/roles/`
-- **Modifier** — `PATCH {{base_url}}/api/roles/1/` body : `{ "name": "supervisor" }`
-- **Supprimer** — `DELETE {{base_url}}/api/roles/1/`
+- **Modifier** — `PATCH {{base_url}}/api/roles/ROL00001/` body : `{ "name": "supervisor" }`
+- **Supprimer** — `DELETE {{base_url}}/api/roles/ROL00001/`
 
 Avec un token d'utilisateur non-admin, ces requêtes renvoient `403 Forbidden`.
 
 ### 9. Utilisateurs et assignation de rôle (`users`) — admin uniquement
 
 - **Lister** — `GET {{base_url}}/api/users/` → renvoie chaque utilisateur avec son tableau `roles`
-- **Détail** — `GET {{base_url}}/api/users/2/`
-- **Assigner un rôle** — `POST {{base_url}}/api/users/2/assign_role/`
+- **Détail** — `GET {{base_url}}/api/users/USR00002/`
+- **Assigner un rôle** — `POST {{base_url}}/api/users/USR00002/assign_role/`
 ```json
 { "role": "manager" }
 ```
   Renvoie `404` si le rôle n'existe pas encore (le créer d'abord via l'étape 8).
-- **Retirer un rôle** — `POST {{base_url}}/api/users/2/remove_role/`
+- **Retirer un rôle** — `POST {{base_url}}/api/users/USR00002/remove_role/`
 ```json
 { "role": "manager" }
 ```
