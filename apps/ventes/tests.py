@@ -4,6 +4,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
+from apps.accounts.models import Role
 from apps.ventes.factories import CustomerFactory, ProductFactory, VenteFactory, VenteLigneFactory
 from apps.ventes.models import Vente, VenteStatus
 
@@ -12,7 +13,9 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def user():
-    return get_user_model().objects.create_user(username='alice', password='pass1234')
+    user = get_user_model().objects.create_user(username='alice', password='pass1234')
+    user.roles.add(Role.objects.get(name='editor'))
+    return user
 
 
 @pytest.fixture
