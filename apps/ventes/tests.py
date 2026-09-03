@@ -102,3 +102,35 @@ def test_unauthenticated_request_is_rejected():
     client = APIClient()
     response = client.get('/api/ventes/')
     assert response.status_code == 401
+
+
+def test_annuler_action_requires_validated_status(api_client):
+    vente = VenteFactory(status=VenteStatus.DRAFT)
+
+    response = api_client.post(f'/api/ventes/{vente.id}/annuler/')
+
+    assert response.status_code == 400
+
+
+def test_annuler_action_success(api_client):
+    vente = VenteFactory(status=VenteStatus.VALIDATED)
+
+    response = api_client.post(f'/api/ventes/{vente.id}/annuler/')
+
+    assert response.status_code == 200
+    vente.refresh_from_db()
+    assert vente.status == VenteStatus.CANCELLED
+
+
+def test_annuler_action_requires_change_permission():
+    user_role_holder = get_user_model().objects.create_user(
+        username='readonly', password='pass1234'
+    )
+    user_role_holder.roles.add(Role.objects.get(name='user'))
+    client = APIClient()
+    client.force_authenticate(user=user_role_holder)
+    vente = VenteFactory(status=VenteStatus.VALIDATED)
+
+    response = client.post(f'/api/ventes/{vente.id}/annuler/')
+
+    assert response.status_code == 403
