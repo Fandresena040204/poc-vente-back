@@ -7,6 +7,7 @@ from apps.core.views import MetaView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('apps.ventes.urls')),
+    path('api/', include('apps.accounts.urls')),
     path('api/meta/<str:resource>/', MetaView.as_view(), name='resource-meta'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
