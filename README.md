@@ -11,6 +11,14 @@ backend.
 
 - Python 3.12+
 - PostgreSQL 14+
+- Git et un compte GitHub avec accès au dépôt
+
+## Cloner le projet
+
+```bash
+git clone https://github.com/Fandresena040204/poc-vente-back.git
+cd poc-vente-back
+```
 
 ## Installation
 
@@ -64,6 +72,35 @@ python -m pytest -q
 ruff check .
 ```
 
+## Structure du projet
+
+Convention adoptée pour ce dépôt : **un fichier par classe**, à la manière Java, plutôt que des
+modules `models.py`/`serializers.py`/`views.py` monolithiques. Chaque package expose ses classes
+via `__init__.py`, donc les imports habituels (`from apps.ventes.models import Vente`) restent
+valables.
+
+```
+apps/ventes/
+├── models/
+│   ├── product.py
+│   ├── vente.py          # Vente + VenteStatus
+│   └── vente_ligne.py
+├── serializers/
+│   ├── product_serializer.py
+│   ├── vente_serializer.py
+│   └── vente_ligne_serializer.py
+├── views/
+│   ├── product_viewset.py
+│   └── vente_viewset.py
+└── admin/
+    ├── product_admin.py
+    ├── vente_admin.py
+    └── vente_ligne_inline.py
+```
+
+En ajoutant une nouvelle ressource métier, suivre le même découpage : un fichier par modèle, par
+sérialiseur, par viewset, par classe d'admin.
+
 ## Endpoints principaux
 
 - `GET/POST /api/ventes/` — liste/création de ventes (avec lignes imbriquées)
@@ -76,3 +113,88 @@ ruff check .
 ## Suivi de projet
 
 Voir `TODO.md` à la racine pour l'état d'avancement.
+
+## Contribuer
+
+### Stratégie de branches
+
+- `main` — code stable, déployable. **Protégée** : pas de push direct, merge uniquement via
+  Pull Request avec la CI verte.
+- `develop` — branche d'intégration. Toutes les fonctionnalités y sont fusionnées avant de partir
+  vers `main`.
+- `feature/xxx` — une branche par fonctionnalité, créée depuis `develop`
+  (ex : `feature/model-vente`, `feature/viewset-vente`).
+
+### Créer une branche de fonctionnalité
+
+Toujours partir d'un `develop` à jour :
+
+```bash
+git checkout develop
+git pull
+git checkout -b feature/nom-de-la-fonctionnalite
+```
+
+### Développer et tester en local
+
+```bash
+# Lancer le serveur
+python manage.py runserver
+
+# Lancer les tests
+python -m pytest -q
+
+# Lancer le lint
+ruff check .
+
+# Vérifier qu'aucune migration n'est manquante
+python manage.py makemigrations --check --dry-run
+```
+
+Les quatre commandes ci-dessus sont celles exécutées par la CI — les passer en local avant de
+pousser évite un aller-retour inutile.
+
+### Commiter
+
+Utiliser des messages de commit conventionnels (`feat:`, `fix:`, `chore:`, `test:`, `docs:`,
+`refactor:`, `ci:`) :
+
+```bash
+git add <fichiers concernés>
+git commit -m "feat: description courte de la fonctionnalité"
+```
+
+Éviter `git add -A`/`git add .` sans vérifier `git status` avant, pour ne pas commiter de fichiers
+indésirables (`.env`, `db.sqlite3`, etc. — déjà couverts par `.gitignore`).
+
+### Pousser et ouvrir une Pull Request
+
+```bash
+git push -u origin feature/nom-de-la-fonctionnalite
+gh pr create --base develop --head feature/nom-de-la-fonctionnalite \
+  --title "feat: description courte" \
+  --body "Résumé de ce que fait la PR et comment le tester."
+```
+
+(Ou directement depuis l'interface GitHub, bouton "Compare & pull request".)
+
+La CI (lint + migrations + tests) se déclenche automatiquement sur la PR. Attendre qu'elle soit
+verte avant de merger.
+
+### Merger
+
+Une fois la CI verte (et une relecture si vous travaillez à plusieurs) :
+
+```bash
+gh pr merge --merge --delete-branch
+```
+
+Toujours merger `feature/xxx` → `develop`. Le passage `develop` → `main` se fait de la même façon,
+via une Pull Request dédiée, une fois les fonctionnalités validées sur `develop`.
+
+### Mettre à jour sa branche locale après un merge
+
+```bash
+git checkout develop
+git pull
+```
