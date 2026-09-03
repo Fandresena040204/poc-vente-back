@@ -1,3 +1,4 @@
+from django_fsm import TransitionNotAllowed
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -25,6 +26,21 @@ class VenteViewSet(viewsets.ModelViewSet):
         vente = self.get_object()
         try:
             vente.validate_vente()
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=400)
+        except TransitionNotAllowed:
+            return Response(
+                {'detail': "Seule une vente en brouillon peut être validée."}, status=400
+            )
+        vente.save(update_fields=['status', 'updated_at'])
+        return Response(VenteSerializer(vente, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def annuler(self, request, pk=None):
+        vente = self.get_object()
+        try:
+            vente.cancel_vente()
+        except TransitionNotAllowed:
+            return Response(
+                {'detail': "Seule une vente validée peut être annulée."}, status=400
+            )
+        vente.save(update_fields=['status', 'updated_at'])
         return Response(VenteSerializer(vente, context={'request': request}).data)

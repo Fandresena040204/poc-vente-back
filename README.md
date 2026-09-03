@@ -166,7 +166,27 @@ admin peut aussi vérifier via `GET /api/users/{id}/`.
 - `GET/POST /api/ventes/` — liste/création de ventes (avec lignes imbriquées)
 - `GET/PUT/PATCH/DELETE /api/ventes/{id}/` — détail d'une vente
 - `POST /api/ventes/{id}/valider/` — action custom de validation d'une vente en brouillon
+- `POST /api/ventes/{id}/annuler/` — action custom d'annulation d'une vente déjà validée
 - `GET /api/meta/{resource}/` — métadonnées introspectées d'une ressource (`ventes`, `products`, `customers`)
+
+### Machine à états (`django-fsm`)
+
+Le champ `Vente.status` est un `FSMField` (`django-fsm`) plutôt qu'un simple `CharField` : les
+transitions sont déclarées explicitement via `@transition(field=status, source=..., target=...)`
+sur `validate_vente()` et `cancel_vente()`. Appeler `cancel_vente()` sur une vente qui n'est pas
+`validated` lève `django_fsm.TransitionNotAllowed` **avant** d'exécuter le moindre code métier —
+la transition invalide est impossible structurellement, pas juste vérifiée par un `if`.
+
+```
+draft ──valider──> validated ──annuler──> cancelled
+```
+
+Il n'y a pas de transition `draft → cancelled` ni de retour arrière — seul le chemin ci-dessus
+existe. `annuler` est une action custom, donc elle requiert `change_vente` par défaut (voir
+tableau des permissions) : **seul un rôle avec la permission `change` peut annuler une vente**.
+
+> Note : `django-fsm` (version installée) est déprécié au profit de `viewflow.fsm`, mais reste
+> fonctionnel. À réévaluer si le projet grandit.
 
 ### Système de permissions
 
@@ -376,6 +396,9 @@ Toutes ces requêtes nécessitent le header `Authorization: Bearer {{access_toke
 - **Supprimer** — `DELETE {{base_url}}/api/ventes/VNT00001/`
 - **Valider une vente (brouillon → validée)** — `POST {{base_url}}/api/ventes/VNT00001/valider/`
   (pas de body). Renvoie 400 si la vente n'est pas en statut `draft`.
+- **Annuler une vente (validée → annulée)** — `POST {{base_url}}/api/ventes/VNT00001/annuler/`
+  (pas de body). Renvoie 400 si la vente n'est pas en statut `validated`, 403 si le rôle de
+  l'utilisateur n'a pas `change_vente` (le rôle `user` par défaut, create+read seul, est refusé).
 
 ### 8. Rôles (`roles`) — réservé au rôle `admin`
 
