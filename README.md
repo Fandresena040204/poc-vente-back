@@ -129,13 +129,33 @@ métier.
 - `POST /api/token/refresh/` — renouvelle un `access` token à partir du `refresh`
 - `GET/PATCH /api/auth/me/` — consulter/modifier son propre profil (utilisateur connecté)
 
-### Utilisateurs et rôles (réservé aux administrateurs, `is_staff=True`)
+### Utilisateurs et rôles (réservé au rôle `admin`)
 
 - `GET /api/users/` — liste des utilisateurs (avec leurs rôles)
 - `GET /api/users/{id}/` — détail d'un utilisateur
 - `POST /api/users/{id}/assign_role/` — assigne un rôle (`{"role": "manager"}`)
 - `POST /api/users/{id}/remove_role/` — retire un rôle
-- `GET/POST /api/roles/`, `GET/PUT/PATCH/DELETE /api/roles/{id}/` — CRUD des rôles (`Group` Django)
+- `GET/POST /api/roles/`, `GET/PUT/PATCH/DELETE /api/roles/{id}/` — CRUD des rôles
+
+#### Comment savoir/faire qu'un utilisateur "a" le rôle admin
+
+Le rôle `Role` (table `accounts_role`) est la **seule source de vérité** pour ces deux ressources.
+`is_staff`/`is_superuser` ne jouent aucun rôle ici — ce sont des flags Django qui ne servent qu'à
+se connecter à `/admin/` (l'interface web native). La permission `IsAdminRole` vérifie uniquement
+`user.roles.filter(name='admin').exists()`.
+
+Un rôle `admin` est **créé automatiquement par migration** (`accounts.0003_seed_admin_role`), donc
+`Role` n'est jamais vide après un `migrate` — mais il n'est assigné à personne par défaut. Pour
+l'assigner à un utilisateur (commande exécutée directement en base, donc pas soumise à la
+permission `IsAdminRole` — c'est le mécanisme de bootstrap) :
+
+```bash
+python manage.py assign_admin_role <username>
+```
+
+Pour vérifier que ça a fonctionné, sans toucher à la base : `GET /api/auth/me/` renvoie `roles`
+pour l'utilisateur connecté — n'importe qui peut vérifier ses propres droits via ce endpoint. Un
+admin peut aussi vérifier via `GET /api/users/{id}/`.
 
 ### Ressources métier (authentification requise)
 
@@ -156,12 +176,13 @@ métier.
 | `customers`   | Connecté                | Connecté                 | Connecté                   | Connecté                    |
 | `products`    | Connecté                | Connecté                 | Connecté                   | Connecté                    |
 | `ventes`      | Connecté                | Connecté                 | Connecté                   | Connecté                    |
-| `roles`       | Admin (`is_staff`)      | Admin                    | Admin                      | Admin                       |
-| `users`       | Admin                   | — (pas de création directe, passer par `auth/register`) | — (utiliser `assign_role`/`remove_role`) | — |
+| `roles`       | Rôle `admin`            | Rôle `admin`             | Rôle `admin`               | Rôle `admin`                |
+| `users`       | Rôle `admin`            | — (pas de création directe, passer par `auth/register`) | — (utiliser `assign_role`/`remove_role`) | — |
 
 « Connecté » = n'importe quel utilisateur authentifié (token JWT valide), pas de notion de rôle
 métier vérifiée pour l'instant sur `customers`/`products`/`ventes` — c'est la prochaine étape si
-le POC est étendu (voir `TODO.md`).
+le POC est étendu (voir `TODO.md`). « Rôle `admin` » = l'utilisateur a le rôle `admin` assigné via
+`python manage.py assign_admin_role <username>`.
 
 ## Guide de test Postman
 
@@ -303,19 +324,26 @@ Toutes ces requêtes nécessitent le header `Authorization: Bearer {{access_toke
 - **Valider une vente (brouillon → validée)** — `POST {{base_url}}/api/ventes/VNT00001/valider/`
   (pas de body). Renvoie 400 si la vente n'est pas en statut `draft`.
 
-### 8. Rôles (`roles`) — admin uniquement (`is_staff=True`)
+### 8. Rôles (`roles`) — réservé au rôle `admin`
 
-Utilise le compte admin créé localement (`testuser` / `TestPass123!`, ou ton propre superuser
-via `python manage.py createsuperuser`), connecte-toi via l'étape 2 pour récupérer son token.
+Un rôle `admin` existe déjà par défaut (créé par migration), mais n'est assigné à personne. Pour
+en donner l'accès à un compte (ex: ton superuser local `testuser`) :
+
+```bash
+python manage.py assign_admin_role testuser
+```
+
+Connecte-toi ensuite via l'étape 2 pour récupérer son token.
 
 - **Créer** — `POST {{base_url}}/api/roles/` body : `{ "name": "manager" }`
 - **Lister** — `GET {{base_url}}/api/roles/`
 - **Modifier** — `PATCH {{base_url}}/api/roles/ROL00001/` body : `{ "name": "supervisor" }`
 - **Supprimer** — `DELETE {{base_url}}/api/roles/ROL00001/`
 
-Avec un token d'utilisateur non-admin, ces requêtes renvoient `403 Forbidden`.
+Avec un token d'utilisateur sans le rôle `admin` (et non-superuser), ces requêtes renvoient
+`403 Forbidden`.
 
-### 9. Utilisateurs et assignation de rôle (`users`) — admin uniquement
+### 9. Utilisateurs et assignation de rôle (`users`) — réservé au rôle `admin`
 
 - **Lister** — `GET {{base_url}}/api/users/` → renvoie chaque utilisateur avec son tableau `roles`
 - **Détail** — `GET {{base_url}}/api/users/USR00002/`
