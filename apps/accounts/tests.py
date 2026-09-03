@@ -2,6 +2,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
+from apps.accounts.models import Role
+
 pytestmark = pytest.mark.django_db
 
 User = get_user_model()
@@ -84,7 +86,7 @@ def test_only_admin_can_manage_roles():
 
 
 def test_admin_can_create_role_and_assign_it_to_user():
-    admin = User.objects.create_user(username='admin', password='pass1234', is_staff=True)
+    admin = User.objects.create_user(username='admin', password='pass1234', is_superuser=True)
     target_user = User.objects.create_user(username='employee', password='pass1234')
     client = APIClient()
     client.force_authenticate(user=admin)
@@ -106,7 +108,7 @@ def test_admin_can_create_role_and_assign_it_to_user():
 
 
 def test_assign_unknown_role_returns_404():
-    admin = User.objects.create_user(username='admin2', password='pass1234', is_staff=True)
+    admin = User.objects.create_user(username='admin2', password='pass1234', is_superuser=True)
     target_user = User.objects.create_user(username='employee2', password='pass1234')
     client = APIClient()
     client.force_authenticate(user=admin)
@@ -124,5 +126,29 @@ def test_users_list_requires_admin():
     client.force_authenticate(user=user)
 
     response = client.get('/api/users/')
+
+    assert response.status_code == 403
+
+
+def test_admin_role_grants_access_without_is_staff_or_is_superuser():
+    admin_role, _ = Role.objects.get_or_create(name='admin')
+    user = User.objects.create_user(username='role_only_admin', password='pass1234')
+    user.roles.add(admin_role)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get('/api/roles/')
+
+    assert response.status_code == 200
+    assert user.is_staff is False
+    assert user.is_superuser is False
+
+
+def test_regular_user_without_admin_role_is_forbidden():
+    user = User.objects.create_user(username='no_role_user', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get('/api/roles/')
 
     assert response.status_code == 403
