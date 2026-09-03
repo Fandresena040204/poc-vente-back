@@ -10,6 +10,4 @@ class IsAdminRole(BasePermission):
         user = request.user
         if not (user and user.is_authenticated):
             return False
-        if user.is_superuser:
-            return True
         return user.roles.filter(name=ADMIN_ROLE_NAME).exists()

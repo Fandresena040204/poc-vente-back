@@ -139,23 +139,23 @@ métier.
 
 #### Comment savoir/faire qu'un utilisateur "a" le rôle admin
 
-Le rôle `Role` (table `accounts_role`) est la **source de vérité** pour ces deux ressources —
-pas `is_staff` (qui ne sert plus que pour se connecter à `/admin/`, l'interface Django). La
-permission `IsAdminRole` autorise l'accès si :
-- l'utilisateur a le rôle nommé `admin` (`user.roles.filter(name='admin').exists()`), **ou**
-- l'utilisateur est `is_superuser=True` (filet de sécurité pour le bootstrap : sans lui, personne
-  ne pourrait créer le tout premier rôle `admin` après un `flush` de la base).
+Le rôle `Role` (table `accounts_role`) est la **seule source de vérité** pour ces deux ressources.
+`is_staff`/`is_superuser` ne jouent aucun rôle ici — ce sont des flags Django qui ne servent qu'à
+se connecter à `/admin/` (l'interface web native). La permission `IsAdminRole` vérifie uniquement
+`user.roles.filter(name='admin').exists()`.
 
 Un rôle `admin` est **créé automatiquement par migration** (`accounts.0003_seed_admin_role`), donc
-`Role` n'est jamais vide après un `migrate`. Pour l'assigner à un utilisateur :
+`Role` n'est jamais vide après un `migrate` — mais il n'est assigné à personne par défaut. Pour
+l'assigner à un utilisateur (commande exécutée directement en base, donc pas soumise à la
+permission `IsAdminRole` — c'est le mécanisme de bootstrap) :
 
 ```bash
 python manage.py assign_admin_role <username>
 ```
 
-Pour vérifier que ça a fonctionné, sans toucher à la base : `GET /api/auth/me/` renvoie
-`is_superuser` et `roles` pour l'utilisateur connecté — n'importe qui peut vérifier ses propres
-droits via ce endpoint. Un admin peut aussi vérifier via `GET /api/users/{id}/`.
+Pour vérifier que ça a fonctionné, sans toucher à la base : `GET /api/auth/me/` renvoie `roles`
+pour l'utilisateur connecté — n'importe qui peut vérifier ses propres droits via ce endpoint. Un
+admin peut aussi vérifier via `GET /api/users/{id}/`.
 
 ### Ressources métier (authentification requise)
 
@@ -181,8 +181,8 @@ droits via ce endpoint. Un admin peut aussi vérifier via `GET /api/users/{id}/`
 
 « Connecté » = n'importe quel utilisateur authentifié (token JWT valide), pas de notion de rôle
 métier vérifiée pour l'instant sur `customers`/`products`/`ventes` — c'est la prochaine étape si
-le POC est étendu (voir `TODO.md`). « Rôle `admin` » = l'utilisateur a le rôle `admin` assigné
-(`assign_admin_role`), ou est `is_superuser=True` (bootstrap).
+le POC est étendu (voir `TODO.md`). « Rôle `admin` » = l'utilisateur a le rôle `admin` assigné via
+`python manage.py assign_admin_role <username>`.
 
 ## Guide de test Postman
 
@@ -326,12 +326,11 @@ Toutes ces requêtes nécessitent le header `Authorization: Bearer {{access_toke
 
 ### 8. Rôles (`roles`) — réservé au rôle `admin`
 
-Un rôle `admin` existe déjà par défaut (créé par migration). Utilise un compte qui l'a — par
-défaut ton superuser local (`testuser` / `TestPass123!`) y a accès via `is_superuser`, sans même
-avoir besoin qu'on le lui assigne explicitement. Pour un compte "normal" à qui donner ce rôle :
+Un rôle `admin` existe déjà par défaut (créé par migration), mais n'est assigné à personne. Pour
+en donner l'accès à un compte (ex: ton superuser local `testuser`) :
 
 ```bash
-python manage.py assign_admin_role <username>
+python manage.py assign_admin_role testuser
 ```
 
 Connecte-toi ensuite via l'étape 2 pour récupérer son token.
