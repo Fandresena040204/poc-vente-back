@@ -58,6 +58,32 @@ def test_me_returns_current_user():
     assert response.data['username'] == 'alice'
 
 
+def test_me_exposes_effective_permissions_from_roles():
+    user = User.objects.create_user(username='carol', password='pass1234')
+    user.roles.add(Role.objects.get(name='user'))
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get('/api/auth/me/')
+
+    assert response.status_code == 200
+    assert response.data['roles'] == ['user']
+    assert 'add_customer' in response.data['permissions']
+    assert 'view_customer' in response.data['permissions']
+    assert 'delete_customer' not in response.data['permissions']
+
+
+def test_me_permissions_are_empty_without_roles():
+    user = User.objects.create_user(username='dave', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get('/api/auth/me/')
+
+    assert response.status_code == 200
+    assert response.data['permissions'] == []
+
+
 def test_user_role_can_create_and_read_customers_but_not_delete():
     user = User.objects.create_user(username='bob', password='pass1234')
     user.roles.add(Role.objects.get(name='user'))
