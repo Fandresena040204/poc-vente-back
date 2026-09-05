@@ -7,6 +7,9 @@ implémentée : **Vente** (parent) / **VenteLigne** (enfant).
 Le frontend React + TanStack sera abordé dans une session séparée — ce dépôt ne concerne que le
 backend.
 
+Guide développeur (ajouter une ressource, un viewset, une page côté frontend...) :
+[`GUIDE_DEVELOPPEUR.md`](./GUIDE_DEVELOPPEUR.md).
+
 ## Prérequis
 
 - Python 3.12+
