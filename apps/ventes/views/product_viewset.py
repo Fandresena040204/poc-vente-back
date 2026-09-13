@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 
 from apps.accounts.permissions import HasRolePermission
+from apps.ventes.filters import ProductFilterSet
 from apps.ventes.models import Product
 from apps.ventes.serializers import ProductSerializer
 
@@ -9,5 +10,6 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     queryset = Product.objects.all()
     permission_classes = [HasRolePermission]
+    filterset_class = ProductFilterSet
     search_fields = ['name', 'sku']
-    ordering_fields = ['name', 'default_price']
+    ordering_fields = ['name', 'default_price', 'created_at']
