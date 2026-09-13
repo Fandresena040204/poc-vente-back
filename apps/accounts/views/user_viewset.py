@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.accounts.filters import UserFilterSet
 from apps.accounts.models import Role
 from apps.accounts.permissions import IsAdminRole
 from apps.accounts.serializers import UserListSerializer
@@ -12,8 +13,15 @@ User = get_user_model()
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserListSerializer
-    queryset = User.objects.all().prefetch_related('roles')
     permission_classes = [IsAdminRole]
+    filterset_class = UserFilterSet
+    search_fields = ['username']
+    ordering_fields = ['username', 'date_joined']
+
+    def get_queryset(self):
+        # .distinct() nécessaire : le filtre `roles` (UserFilterSet) traverse
+        # la relation M2M roles, qui peut dupliquer les lignes utilisateur.
+        return User.objects.all().prefetch_related('roles').distinct()
 
     def _set_role(self, request, pk, action_name):
         user = self.get_object()
