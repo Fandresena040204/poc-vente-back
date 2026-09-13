@@ -47,14 +47,16 @@ directement dans les PRs pour un POC solo, sans configuration supplémentaire c�
         filtre par rôle — ajoutés (+ `.distinct()` dans `get_queryset`,
         nécessaire dès que le filtre `roles` traverse la relation M2M).
       - `ProductViewSet.ordering_fields` complété avec `created_at`.
-      - Vérifié : `python manage.py check` (0 problème), tests manuels
-        `curl` authentifiés sur les 3 endpoints modifiés (statut multi-
-        valeurs + tri + pagination sur `/api/ventes/`, intervalle de dates
-        sur `/api/products/`, recherche + filtre rôle sur `/api/users/`) —
-        pas de suite de tests automatisés dans ce repo malgré l'entrée
-        "Fait" plus haut qui l'annonce (`apps/core/tests.py` est vide,
-        aucun `test_*.py` trouvé ailleurs — à vérifier/corriger séparément
-        si besoin, hors périmètre de ce chantier).
+      - Vérifié : `ruff check .` (0 erreur), `makemigrations --check`
+        (aucune migration manquante), `pytest -q` (24 tests verts,
+        `apps/accounts/tests.py`/`apps/ventes/tests.py` — correction d'une
+        affirmation erronée faite en cours de session : la suite de tests
+        existe bel et bien, elle est juste nommée `tests.py` par app plutôt
+        que `test_*.py`, ce qui avait faussé une recherche rapide), et tests
+        manuels `curl` authentifiés sur les 3 endpoints modifiés (statut
+        multi-valeurs + tri + pagination sur `/api/ventes/`, intervalle de
+        dates sur `/api/products/`, recherche + filtre rôle sur
+        `/api/users/`).
 - [x] **Bug corrigé : colonne "Created" vide sur Products** (2026-09-13) :
       `ProductSerializer.Meta.fields` n'a jamais inclus `created_at`/
       `updated_at` (contrairement à `CustomerSerializer`), donc l'API ne les
