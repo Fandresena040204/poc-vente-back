@@ -24,6 +24,7 @@ apps/ventes/
 ├── views/product_viewset.py
 ├── admin/product_admin.py
 ├── filters/product_filters.py
+├── signals/vente_ligne_signals.py
 ├── migrations/
 ├── factories.py
 ├── tests.py
@@ -33,11 +34,12 @@ apps/ventes/
 Ce découpage n'est pas arbitraire : chaque fichier répond à une question
 différente sur la ressource (« c'est quoi en base ? », « qu'est-ce que
 l'API expose ? », « qui peut faire quoi ? », « comment on filtre la
-liste ? »). Un fichier ne devient un **package** (dossier + `__init__.py`)
-que s'il regroupe plusieurs classes portant une vraie logique — `filters/`
-n'existe que parce que Product et Vente ont chacun un `FilterSet` avec du
-code ; `admin/product_admin.py` reste un enregistrement à une ligne, pas
-de logique, donc pas besoin d'y réfléchir davantage.
+liste ? », « que se passe-t-il automatiquement quand ça change ? »). Un
+fichier ne devient un **package** (dossier + `__init__.py`) que s'il
+regroupe plusieurs classes portant une vraie logique — `filters/`/
+`signals/` n'existent que parce que plusieurs modèles de `apps.ventes`
+ont chacun le leur ; `admin/product_admin.py` reste un enregistrement à
+une ligne, pas de logique, donc pas besoin d'y réfléchir davantage.
 
 ---
 
@@ -78,7 +80,7 @@ nouvelle app que si le domaine est vraiment différent.
    **Pas de commande pour scaffolder un modèle/serializer/viewset
    individuel** — ni Django ni DRF n'en fournissent (contrairement à des
    frameworks type Rails avec ses générateurs) : ce sont de simples
-   classes Python à écrire à la main, voir §§ 1-4 ci-dessous.
+   classes Python à écrire à la main, voir §§ 1, 3 et 5 ci-dessous.
 
 2. **`apps.py`** :
 
@@ -188,7 +190,62 @@ nouvelle app que si le domaine est vraiment différent.
 
 ---
 
-## 2. Le serializer
+## 2. Signaux (optionnel — quand une action déclenche un effet ailleurs)
+
+Un signal ne devient utile que si **la sauvegarde/suppression d'un
+modèle doit automatiquement en affecter un autre**, sans que
+l'appelant (viewset, admin, shell) ait à le savoir. Exemple actuel :
+créer/modifier/supprimer une `VenteLigne` doit recalculer
+`Vente.total` — plutôt que d'ajouter cet appel dans chaque endroit qui
+manipule des lignes (viewset, admin, script de migration de données...),
+un signal le fait une seule fois, pour tous les appelants.
+
+Chaque modèle émetteur a son propre fichier, comme pour
+`filters/`/`admin/` :
+
+```python
+# apps/ventes/signals/vente_ligne_signals.py
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
+from apps.ventes.models import VenteLigne
+
+@receiver(post_save, sender=VenteLigne)
+def recalculate_total_on_save(sender, instance, **kwargs):
+    instance.vente.recalculate_total()
+
+@receiver(post_delete, sender=VenteLigne)
+def recalculate_total_on_delete(sender, instance, **kwargs):
+    instance.vente.recalculate_total()
+```
+
+`apps/ventes/signals/__init__.py` importe chaque `<entite>_signals.py`
+(l'import suffit à enregistrer les `@receiver`, pas besoin de les
+ré-exporter) :
+
+```python
+from apps.ventes.signals import vente_ligne_signals  # noqa: F401
+```
+
+Et `apps.py` importe le **package** `signals` une seule fois, dans
+`ready()` — Django appelle `ready()` après que tous les modèles de toutes
+les apps soient chargés, ce qui évite les imports circulaires que l'on
+aurait en import du signal directement dans le modèle :
+
+```python
+class VentesConfig(AppConfig):
+    name = 'apps.ventes'
+    def ready(self):
+        from apps.ventes import signals  # noqa: F401
+```
+
+Ne pas créer `signals/` tant qu'un seul modèle de l'app n'a besoin d'un
+signal — un fichier plat `signals.py` (comme actuellement dans
+`apps.accounts`, qui n'en a aucun) suffit ; ne le transformer en package
+que lorsqu'un deuxième modèle en a besoin.
+
+---
+
+## 3. Le serializer
 
 ```python
 # apps/ventes/serializers/product_serializer.py
@@ -213,7 +270,7 @@ L'exporter dans `apps/ventes/serializers/__init__.py`.
 
 ---
 
-## 3. Filtres — quand et où
+## 4. Filtres — quand et où
 
 Le viewset (§ 5) déclare déjà `search_fields`/`ordering_fields` : ce sont
 de **simples listes de noms de champs**, sans logique, donc elles restent
@@ -290,7 +347,7 @@ dépendre de DRF/django-filter.
 
 ---
 
-## 4. Le viewset
+## 5. Le viewset
 
 Un `ModelViewSet` DRF standard suffit, avec `HasRolePermission` comme
 unique classe de permission :
@@ -307,7 +364,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     queryset = Product.objects.all()
     permission_classes = [HasRolePermission]
-    filterset_class = ProductFilterSet          # seulement si un FilterSet dédié existe (§ 3)
+    filterset_class = ProductFilterSet          # seulement si un FilterSet dédié existe (§ 4)
     search_fields = ['name', 'sku']             # active ?search=
     ordering_fields = ['name', 'default_price', 'created_at']  # active ?ordering=
 ```
@@ -336,7 +393,7 @@ permission (`user.roles.filter(permissions__codename=...)`).
 
 ---
 
-## 5. Pagination
+## 6. Pagination
 
 Rien à déclarer dans le viewset : la pagination est **globale**, appliquée
 automatiquement à toute l'API par `config/settings.py` :
@@ -357,7 +414,7 @@ actuelle n'en a besoin).
 
 ---
 
-## 6. Enregistrer les routes
+## 7. Enregistrer les routes
 
 ```python
 # apps/ventes/urls.py
@@ -376,7 +433,7 @@ dans une app déjà branchée — sinon voir § 0).
 
 ---
 
-## 7. Donner la permission aux rôles par défaut
+## 8. Donner la permission aux rôles par défaut
 
 Sans cette étape, la ressource existe mais **personne n'y a accès** tant
 qu'un admin ne configure pas manuellement la matrice de permissions
@@ -402,14 +459,14 @@ mécanisme générique : protégés par `IsAdminRole` (vérifie directement
 
 ---
 
-## 8. Exposer les métadonnées (optionnel)
+## 9. Exposer les métadonnées (optionnel)
 
 Utilisé pour l'introspection `GET /api/meta/<resource>/` — ajouter le
 serializer dans `RESOURCE_SERIALIZER_MAP` d'`apps/core/views.py`.
 
 ---
 
-## 9. Tests
+## 10. Tests
 
 Voir `apps/accounts/tests.py`/`apps/ventes/tests.py` pour le pattern :
 pytest-django + `factory_boy` + `User.objects.create_user(...)` +
