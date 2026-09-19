@@ -200,6 +200,22 @@ créer/modifier/supprimer une `VenteLigne` doit recalculer
 manipule des lignes (viewset, admin, script de migration de données...),
 un signal le fait une seule fois, pour tous les appelants.
 
+**Signal vs surdéfinir `save()`** — le critère, c'est "sur quel modèle"
+l'effet se produit :
+- **Surdéfinir `save()`** quand le modèle gère **sa propre donnée**,
+  auto-suffisant (ex. `Product.save()` génère son propre `id` via
+  `generate_reference` — ça reste les affaires du modèle).
+- **Signal** quand l'effet touche un **autre modèle**. Surdéfinir
+  `VenteLigne.save()` pour appeler `self.vente.recalculate_total()`
+  marcherait pour `.save()`, mais pas pour `.delete()` (il faudrait
+  aussi surdéfinir `delete()`), ni pour un `queryset.update()` fait
+  ailleurs. Les deux signaux `post_save`/`post_delete` couvrent les deux
+  cas uniformément, peu importe d'où vient l'appel.
+- Un signal se déclenche de façon **synchrone**, dans la **même
+  transaction** que l'appel `.save()`/`.delete()` qui l'a provoqué — s'il
+  y a un `@transaction.atomic` englobant (§ 3.2), l'effet du signal est
+  annulé avec le reste en cas d'échec plus loin.
+
 Chaque modèle émetteur a son propre fichier, comme pour
 `filters/`/`admin/` :
 
@@ -267,6 +283,64 @@ sur ce projet : `ProductSerializer` ne les exposait pas, et une colonne
 la donnée existait bien en base (voir `TODO.md`, entrée "Bug corrigé").
 
 L'exporter dans `apps/ventes/serializers/__init__.py`.
+
+### 3.1. Validation par champ (`validate_<champ>`)
+
+Pour valider un champ précis, ajouter une méthode `validate_<nom_du_champ>`
+— DRF la trouve et l'appelle **automatiquement**, par pure convention de
+nommage (`getattr(self, 'validate_' + field.field_name)`, voir
+`Serializer.to_internal_value` dans le code source de DRF) :
+
+```python
+def validate_default_price(self, value):
+    if value <= 0:
+        raise serializers.ValidationError("Le prix doit être positif.")
+    return value   # toujours retourner la valeur, sinon le champ devient None
+```
+
+Elle reçoit la valeur **déjà validée individuellement** pour ce champ
+(type, required, etc. déjà vérifiés par DRF avant l'appel). Exemple réel
+avec un champ imbriqué (`lines = VenteLigneSerializer(many=True)` sur
+`VenteSerializer`) :
+
+```python
+def validate_lines(self, value):
+    if not value:
+        raise serializers.ValidationError("Une vente doit contenir au moins une ligne.")
+    return value
+```
+
+Ici `value` est déjà la liste de lignes **individuellement validées**
+par `VenteLigneSerializer` (chaque ligne a déjà ses propres champs
+vérifiés) — `validate_lines` ne vérifie que la liste elle-même (vide ou
+non), pas le contenu de chaque ligne.
+
+Pour une validation qui dépend de **plusieurs champs à la fois** (ex.
+"date_fin doit être après date_debut"), `validate_<champ>` ne suffit pas
+puisqu'il ne voit qu'un seul champ — surdéfinir `validate(self, data)`
+(sans suffixe), appelé une fois avec tous les champs déjà validés
+individuellement.
+
+### 3.2. Écriture imbriquée (`create`/`update` + `@transaction.atomic`)
+
+Dès qu'un serializer écrit sur **plusieurs modèles** en une seule
+opération logique (ex. `VenteSerializer.create` : une `Vente` + toutes
+ses `VenteLigne`), surdéfinir `create`/`update` en les encadrant de
+`@transaction.atomic` — voir `apps/ventes/serializers/vente_serializer.py`
+en entier pour l'exemple complet (diff des lignes ajoutées/modifiées/
+supprimées à l'`update`).
+
+Le critère pour savoir si `@transaction.atomic` est nécessaire n'est pas
+"y a-t-il une relation parent/enfant" mais **"est-ce que plusieurs
+requêtes SQL doivent réussir ou échouer ensemble ?"** — sans lui, une
+erreur après la 2ᵉ ligne créée laisserait une `Vente` avec seulement une
+partie de ses lignes en base, une donnée incohérente visible
+immédiatement par tout le monde. `@transaction.atomic` regroupe toutes
+les requêtes de la méthode dans une seule transaction Postgres : tout
+est validé, ou tout est annulé (y compris la `Vente` déjà créée) à la
+première exception. Une méthode qui ne fait qu'un seul `save()`/
+`create()`/`delete()` n'en a pas besoin — une requête individuelle est
+déjà atomique par nature.
 
 ---
 
