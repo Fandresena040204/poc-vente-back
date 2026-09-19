@@ -391,6 +391,50 @@ modèle existe (post-migration) — pas besoin de les déclarer à la main. Un
 utilisateur y a accès si **au moins un de ses rôles** possède la
 permission (`user.roles.filter(permissions__codename=...)`).
 
+### 5.1. Endpoint custom (pas du CRUD standard)
+
+Le CRUD de base (`list`/`create`/`retrieve`/`update`/`destroy`) vient
+gratuitement de `ModelViewSet` — rien à écrire pour ça. Pour une action
+métier en plus (ex. changer le statut d'une Vente), ajouter une méthode
+décorée `@action` sur le viewset :
+
+```python
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
+class VenteViewSet(viewsets.ModelViewSet):
+    ...
+    @action(detail=True, methods=['post'])
+    def valider(self, request, pk=None):
+        vente = self.get_object()
+        try:
+            vente.validate_vente()          # transition django-fsm, voir modèle
+        except TransitionNotAllowed:
+            return Response({'detail': "..."}, status=400)
+        vente.save(update_fields=['status', 'updated_at'])
+        return Response(VenteSerializer(vente, context={'request': request}).data)
+```
+
+- `detail=True` route vers `POST /api/<ressource>/{id}/valider/` (agit
+  sur une instance) ; `detail=False` vers `POST /api/<ressource>/valider/`
+  (agit sur la collection). Le nom de la méthode devient le dernier
+  segment de l'URL.
+- Pas besoin de toucher `urls.py` — le `DefaultRouter` détecte les
+  `@action` automatiquement.
+- Si la transition d'état est gérée par **django-fsm**
+  (`@transition(field=status, source=..., target=...)` sur le modèle,
+  voir `Vente.validate_vente`/`Vente.cancel_vente`), toujours encadrer
+  l'appel d'un `try/except TransitionNotAllowed` — la transition lève
+  cette exception si l'état actuel ne le permet pas (ex. annuler une
+  vente qui est encore en brouillon).
+- Par défaut, `HasRolePermission` exige `change_<model>` pour une action
+  custom (voir tableau ci-dessus) — remplaçable en surchargeant
+  `get_permissions()` sur le viewset si l'action a besoin d'une
+  permission différente.
+
+Exemple réel complet : `apps/ventes/views/vente_viewset.py` (`valider`/
+`annuler`).
+
 ---
 
 ## 6. Pagination
