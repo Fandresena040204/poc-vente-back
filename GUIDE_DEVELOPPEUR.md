@@ -48,7 +48,18 @@ Role) ou `apps.ventes` (Product, Vente, VenteLigne). Une nouvelle
 ressource va presque toujours dans une app existante — ne créer une
 nouvelle app que si le domaine est vraiment différent.
 
-1. **Créer le dossier** avec la même structure que `apps/ventes/` :
+1. **Créer le dossier.** Il existe une commande Django pour ça
+   (`python manage.py startapp <nom> apps/<nom>` — le second argument
+   place l'app dans `apps/` plutôt qu'à la racine du projet), mais elle
+   génère la structure **plate** par défaut de Django (`admin.py`,
+   `models.py`, `views.py`, `tests.py`, `migrations/`) — pas les packages
+   par entité utilisés ici, et rien pour `serializers`/`filters`/
+   `factories.py` (concepts DRF/du projet, pas du Django de base). Deux
+   options :
+   - la lancer puis **réorganiser** ce qu'elle génère (transformer
+     `models.py` en dossier `models/` + fichier par entité, etc.) ;
+   - ou créer directement la structure cible à la main, plus rapide dès
+     qu'on sait qu'on va vouloir des packages :
 
    ```
    apps/ma_nouvelle_app/
@@ -63,6 +74,11 @@ nouvelle app que si le domaine est vraiment différent.
    ├── tests.py
    └── urls.py
    ```
+
+   **Pas de commande pour scaffolder un modèle/serializer/viewset
+   individuel** — ni Django ni DRF n'en fournissent (contrairement à des
+   frameworks type Rails avec ses générateurs) : ce sont de simples
+   classes Python à écrire à la main, voir §§ 1-4 ci-dessous.
 
 2. **`apps.py`** :
 
