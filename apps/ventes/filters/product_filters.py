@@ -1,7 +1,6 @@
 from django_filters import rest_framework as filters
 
-from apps.core.filters import CharInFilter
-from apps.ventes.models import Product, Vente
+from apps.ventes.models import Product
 
 
 class ProductFilterSet(filters.FilterSet):
@@ -11,11 +10,3 @@ class ProductFilterSet(filters.FilterSet):
     class Meta:
         model = Product
         fields = ['created_at_min', 'created_at_max']
-
-
-class VenteFilterSet(filters.FilterSet):
-    status = CharInFilter(field_name='status')
-
-    class Meta:
-        model = Vente
-        fields = ['status', 'customer']
