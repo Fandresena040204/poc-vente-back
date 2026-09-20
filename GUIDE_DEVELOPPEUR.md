@@ -318,8 +318,33 @@ non), pas le contenu de chaque ligne.
 Pour une validation qui dépend de **plusieurs champs à la fois** (ex.
 "date_fin doit être après date_debut"), `validate_<champ>` ne suffit pas
 puisqu'il ne voit qu'un seul champ — surdéfinir `validate(self, data)`
-(sans suffixe), appelé une fois avec tous les champs déjà validés
-individuellement.
+**sans suffixe**, appelé une seule fois, après que tous les
+`validate_<champ>` soient passés :
+
+```python
+def validate(self, data):
+    if data['date_fin'] <= data['date_debut']:
+        raise serializers.ValidationError(
+            {'date_fin': "La date de fin doit être après la date de début."}
+        )
+    return data
+```
+
+Différences avec `validate_<champ>` :
+- reçoit **tous** les champs déjà validés individuellement dans un seul
+  dict `data`, pas juste un ;
+- appelé **une seule fois**, pas par champ ;
+- `return data` obligatoire à la fin, comme `validate_<champ>` retourne
+  sa valeur.
+
+**Piège en édition partielle (`PATCH`)** : si `date_debut` n'est pas
+envoyé dans la requête, il n'est pas dans `data` — utiliser
+`data.get('date_debut', self.instance.date_debut if self.instance else None)`
+pour retomber sur la valeur déjà en base plutôt que de lever un
+`KeyError`.
+
+(Aucun modèle du projet n'a aujourd'hui ce genre de paire de champs —
+exemple purement illustratif, pas un fichier existant à consulter.)
 
 ### 3.2. Écriture imbriquée (`create`/`update` + `@transaction.atomic`)
 
