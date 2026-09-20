@@ -534,6 +534,87 @@ class VenteViewSet(viewsets.ModelViewSet):
 Exemple réel complet : `apps/ventes/views/vente_viewset.py` (`valider`/
 `annuler`).
 
+### 5.2. Transitions django-fsm — ajouter du traitement, appeler hors API
+
+**Ajouter du traitement au moment d'une transition** — trois façons,
+selon la portée de l'effet (même critère que "signal vs surdéfinir
+`save()`", § 2) :
+
+- **Écrire le code dans le corps de la méthode** — pour un effet
+  **propre à cette transition précise** (ex. envoyer un email
+  uniquement quand on valide une Vente) :
+
+  ```python
+  @transition(field=status, source=VenteStatus.DRAFT, target=VenteStatus.VALIDATED)
+  def validate_vente(self):
+      envoyer_email_validation(self)
+  ```
+
+  **Piège** : à cet instant, `self.status` vaut encore la **source**
+  (`DRAFT`), pas la cible — django-fsm exécute entièrement le corps de
+  la méthode avant de changer l'état, et seulement s'il ne lève aucune
+  exception. Ne pas se fier à `self.status` dans le corps pour connaître
+  le nouvel état.
+
+- **`conditions=[...]`** sur `@transition` — pour **empêcher** la
+  transition selon une règle métier (pas seulement l'état source) :
+
+  ```python
+  @transition(
+      field=status, source=VenteStatus.DRAFT, target=VenteStatus.VALIDATED,
+      conditions=[lambda vente: vente.total > 0],
+  )
+  def validate_vente(self):
+      pass
+  ```
+
+  Si une condition renvoie `False`, django-fsm lève `TransitionNotAllowed`
+  — la même exception que pour un mauvais état source, donc le
+  `try/except TransitionNotAllowed` du viewset (§ 5.1) la capture déjà
+  sans rien changer.
+
+- **Signal `post_transition`** (`django_fsm.signals`) — pour un effet
+  **transverse à toutes les transitions** du modèle (ex. journaliser
+  chaque changement de statut, peu importe lequel), plutôt que de
+  dupliquer le même code dans chaque méthode `@transition` :
+
+  ```python
+  from django_fsm.signals import post_transition
+
+  @receiver(post_transition, sender=Vente)
+  def log_transition(sender, instance, name, source, target, **kwargs):
+      # 'name' = nom de la méthode ('validate_vente'/'cancel_vente') pour filtrer si besoin
+      ...
+  ```
+
+  Contrairement au corps de méthode, `post_transition` se déclenche
+  **après** que l'état soit passé à la cible.
+
+  Ne pas utiliser un signal par défaut : s'il n'y a besoin d'agir que
+  pour **une** transition précise, le corps de méthode reste plus direct
+  et plus lisible qu'un handler générique qui doit filtrer sur `name`.
+
+**Appeler une transition hors d'un appel API** — ce sont de simples
+méthodes Python sur le modèle, appelables depuis n'importe où (shell,
+commande de management, tâche planifiée, test) :
+
+```python
+from apps.ventes.models import Vente
+
+vente = Vente.objects.get(pk='VNT00001')
+vente.validate_vente()
+vente.save(update_fields=['status', 'updated_at'])   # obligatoire
+```
+
+**La transition ne sauvegarde jamais en base toute seule** — elle ne
+fait que changer `self.status` **en mémoire**, exactement comme
+n'importe quelle assignation de champ Django (`vente.customer = ...` ne
+sauvegarde pas non plus). `@transition` n'a pas d'option `save=True`.
+Ce choix permet de regrouper plusieurs changements dans un seul
+`.save(update_fields=[...])` (une seule requête SQL, contrôle précis des
+colonnes écrites) plutôt que de forcer une sauvegarde immédiate et
+isolée à chaque transition.
+
 ---
 
 ## 6. Pagination
