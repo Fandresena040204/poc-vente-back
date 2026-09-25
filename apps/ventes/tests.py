@@ -40,8 +40,8 @@ def test_create_vente_with_lines_recalculates_total(api_client):
     payload = {
         'customer': customer.id,
         'lines': [
-            {'product': product.id, 'quantity': '2', 'unit_price': '20.00'},
-            {'product': product.id, 'quantity': '1', 'unit_price': '5.00'},
+            {'product': product.id, 'quantity': '2', 'unit_price': '20.00', 'tva_rate': '0'},
+            {'product': product.id, 'quantity': '1', 'unit_price': '5.00', 'tva_rate': '0'},
         ],
     }
 
@@ -55,8 +55,8 @@ def test_create_vente_with_lines_recalculates_total(api_client):
 
 def test_signal_recalculates_total_on_line_delete():
     vente = VenteFactory()
-    line1 = VenteLigneFactory(vente=vente, quantity=2, unit_price=10)
-    VenteLigneFactory(vente=vente, quantity=1, unit_price=5)
+    line1 = VenteLigneFactory(vente=vente, quantity=2, unit_price=10, tva_rate=0)
+    VenteLigneFactory(vente=vente, quantity=1, unit_price=5, tva_rate=0)
     vente.refresh_from_db()
     assert vente.total == 25
 
@@ -132,15 +132,28 @@ def test_annuler_action_success(api_client):
 
 def test_line_and_global_discount_are_applied_to_total():
     vente = VenteFactory(discount_percent=10)
-    # (2 * 20) * 0.9 [remise ligne] = 36 ; puis * 0.9 [remise globale] = 32.40
-    VenteLigneFactory(vente=vente, quantity=2, unit_price=20, discount_percent=10)
+    # (2 * 20) * 0.9 [remise ligne] = 36 ; puis * 0.9 [remise globale] = 32.40 (pas de TVA ici)
+    VenteLigneFactory(vente=vente, quantity=2, unit_price=20, discount_percent=10, tva_rate=0)
     vente.refresh_from_db()
+    assert vente.subtotal_ht == Decimal('36.00')
+    assert vente.discount_amount == Decimal('3.60')
+    assert vente.tva_amount == Decimal('0.00')
     assert vente.total == Decimal('32.40')
+
+
+def test_tva_is_applied_after_discounts():
+    vente = VenteFactory(discount_percent=10)
+    # HT ligne = 100 ; remise globale 10% -> net HT = 90 ; TVA 20% de 90 = 18 ; total = 108
+    VenteLigneFactory(vente=vente, quantity=1, unit_price=100, discount_percent=0, tva_rate=20)
+    vente.refresh_from_db()
+    assert vente.subtotal_ht == Decimal('100.00')
+    assert vente.tva_amount == Decimal('18.00')
+    assert vente.total == Decimal('108.00')
 
 
 def test_update_vente_discount_without_touching_lines_recalculates_total(api_client):
     vente = VenteFactory(discount_percent=0)
-    VenteLigneFactory(vente=vente, quantity=1, unit_price=100)
+    VenteLigneFactory(vente=vente, quantity=1, unit_price=100, tva_rate=0)
     vente.refresh_from_db()
     assert vente.total == 100
 

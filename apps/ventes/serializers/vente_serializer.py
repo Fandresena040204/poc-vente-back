@@ -11,10 +11,14 @@ class VenteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vente
         fields = [
-            'id', 'customer', 'status', 'priority', 'total', 'discount_percent',
+            'id', 'customer', 'status', 'priority', 'currency', 'discount_percent',
+            'subtotal_ht', 'discount_amount', 'tva_amount', 'total',
             'expected_delivery_date', 'notes', 'lines', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['status', 'total', 'created_at', 'updated_at']
+        read_only_fields = [
+            'status', 'subtotal_ht', 'discount_amount', 'tva_amount', 'total',
+            'created_at', 'updated_at',
+        ]
 
     def validate_lines(self, value):
         if not value:
