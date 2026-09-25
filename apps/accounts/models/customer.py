@@ -9,6 +9,10 @@ class Customer(TimestampedModel):
     name = models.CharField(max_length=255)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
+    address = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    birth_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['name']

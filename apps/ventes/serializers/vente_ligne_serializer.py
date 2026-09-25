@@ -8,4 +8,4 @@ class VenteLigneSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = VenteLigne
-        fields = ['id', 'product', 'quantity', 'unit_price']
+        fields = ['id', 'product', 'quantity', 'unit_price', 'discount_percent', 'tva_rate']

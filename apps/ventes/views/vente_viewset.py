@@ -14,7 +14,7 @@ class VenteViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     filterset_class = VenteFilterSet
     search_fields = ['customer__name']
-    ordering_fields = ['created_at', 'total']
+    ordering_fields = ['created_at', 'total', 'priority', 'expected_delivery_date']
 
     def get_queryset(self):
         return (

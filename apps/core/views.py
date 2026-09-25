@@ -2,12 +2,21 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.serializers import CustomerSerializer
-from apps.ventes.serializers import ProductSerializer, VenteSerializer
+from apps.ventes.serializers import (
+    LivraisonSerializer,
+    PaiementSerializer,
+    ProductCategorySerializer,
+    ProductSerializer,
+    VenteSerializer,
+)
 
 RESOURCE_SERIALIZER_MAP = {
     'ventes': VenteSerializer,
     'products': ProductSerializer,
+    'product-categories': ProductCategorySerializer,
     'customers': CustomerSerializer,
+    'livraisons': LivraisonSerializer,
+    'paiements': PaiementSerializer,
 }
 
 

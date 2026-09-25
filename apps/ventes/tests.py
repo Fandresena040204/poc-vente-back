@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -5,7 +7,13 @@ from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Role
-from apps.ventes.factories import CustomerFactory, ProductFactory, VenteFactory, VenteLigneFactory
+from apps.ventes.factories import (
+    CustomerFactory,
+    LivraisonFactory,
+    ProductFactory,
+    VenteFactory,
+    VenteLigneFactory,
+)
 from apps.ventes.models import Vente, VenteStatus
 
 pytestmark = pytest.mark.django_db
@@ -120,6 +128,53 @@ def test_annuler_action_success(api_client):
     assert response.status_code == 200
     vente.refresh_from_db()
     assert vente.status == VenteStatus.CANCELLED
+
+
+def test_line_and_global_discount_are_applied_to_total():
+    vente = VenteFactory(discount_percent=10)
+    # (2 * 20) * 0.9 [remise ligne] = 36 ; puis * 0.9 [remise globale] = 32.40
+    VenteLigneFactory(vente=vente, quantity=2, unit_price=20, discount_percent=10)
+    vente.refresh_from_db()
+    assert vente.total == Decimal('32.40')
+
+
+def test_update_vente_discount_without_touching_lines_recalculates_total(api_client):
+    vente = VenteFactory(discount_percent=0)
+    VenteLigneFactory(vente=vente, quantity=1, unit_price=100)
+    vente.refresh_from_db()
+    assert vente.total == 100
+
+    response = api_client.patch(
+        f'/api/ventes/{vente.id}/', {'discount_percent': '20'}, format='json'
+    )
+
+    assert response.status_code == 200, response.data
+    vente.refresh_from_db()
+    assert vente.total == 80
+
+
+def test_livraison_list_filtered_by_vente(api_client):
+    vente = VenteFactory()
+    LivraisonFactory(vente=vente)
+    LivraisonFactory()  # attached to a different vente
+
+    response = api_client.get(f'/api/livraisons/?vente={vente.id}')
+
+    assert response.status_code == 200, response.data
+    assert response.data['count'] == 1
+
+
+def test_paiement_create(api_client):
+    vente = VenteFactory()
+
+    response = api_client.post(
+        '/api/paiements/',
+        {'vente': vente.id, 'amount': '50.00', 'method': 'card'},
+        format='json',
+    )
+
+    assert response.status_code == 201, response.data
+    assert vente.paiements.count() == 1
 
 
 def test_annuler_action_requires_change_permission():

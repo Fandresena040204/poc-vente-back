@@ -2,6 +2,7 @@ from django.db import models
 
 from apps.core.models import TimestampedModel
 from apps.core.utils import generate_reference
+from apps.ventes.models.product_category import ProductCategory
 
 
 class Product(TimestampedModel):
@@ -9,6 +10,11 @@ class Product(TimestampedModel):
     name = models.CharField(max_length=255)
     sku = models.CharField(max_length=64, unique=True)
     default_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    category = models.ForeignKey(
+        ProductCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='products'
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['name']

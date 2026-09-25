@@ -10,7 +10,10 @@ class VenteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Vente
-        fields = ['id', 'customer', 'status', 'total', 'lines', 'created_at', 'updated_at']
+        fields = [
+            'id', 'customer', 'status', 'priority', 'total', 'discount_percent',
+            'expected_delivery_date', 'notes', 'lines', 'created_at', 'updated_at',
+        ]
         read_only_fields = ['status', 'total', 'created_at', 'updated_at']
 
     def validate_lines(self, value):
@@ -50,5 +53,10 @@ class VenteSerializer(serializers.ModelSerializer):
                 else:
                     VenteLigne.objects.create(vente=instance, **line_data)
 
+        # `.update()` on existing lines above is a bulk update and doesn't
+        # emit `post_save`, so it wouldn't otherwise trigger
+        # `Vente.recalculate_total` (e.g. editing a line's discount or
+        # `Vente.discount_percent` itself, with no line added/removed).
+        instance.recalculate_total()
         instance.refresh_from_db()
         return instance

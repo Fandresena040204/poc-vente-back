@@ -11,6 +11,8 @@ class VenteLigne(models.Model):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='+')
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    tva_rate = models.DecimalField(max_digits=5, decimal_places=2, default=20)
 
     def save(self, *args, **kwargs):
         if not self.id:
