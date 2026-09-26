@@ -8,6 +8,11 @@ class VenteFilterSet(filters.FilterSet):
     status = CharInFilter(field_name='status')
     priority = CharInFilter(field_name='priority')
     currency = CharInFilter(field_name='currency')
+    # Explicit CharInFilter (comma-separated ids) instead of the default
+    # exact-match FK filter Meta.fields would generate — consistent with
+    # status/priority/currency, and matches the frontend's checkbox-style
+    # faceted filter (multi-select) rather than a single value.
+    customer = CharInFilter(field_name='customer')
     total_min = filters.NumberFilter(field_name='total', lookup_expr='gte')
     total_max = filters.NumberFilter(field_name='total', lookup_expr='lte')
     expected_delivery_date_min = filters.DateFilter(
