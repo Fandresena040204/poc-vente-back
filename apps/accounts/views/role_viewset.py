@@ -9,3 +9,5 @@ class RoleViewSet(viewsets.ModelViewSet):
     serializer_class = RoleSerializer
     queryset = Role.objects.all()
     permission_classes = [IsAdminRole]
+    search_fields = ['name']
+    ordering_fields = ['name']
