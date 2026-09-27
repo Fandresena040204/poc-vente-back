@@ -3,7 +3,8 @@
 Ce guide explique comment étendre l'API Django : créer une app, un
 modèle, un serializer, un viewset filtrable, et brancher tout ça aux
 permissions. Il ne couvre que le **backend** (`poc-vente-back`) — pour le
-frontend, voir `GUIDE_DEVELOPPEUR.md` dans le dépôt `poc-vente-front`.
+frontend de démonstration de la librairie `tanstack-pagekit`, voir
+`GUIDE_DEVELOPPEUR.md` dans le dépôt `pagekit-showcase`.
 
 Pour l'installation et le lancement, voir `README.md`. Pour l'utilisation
 de l'app une fois connecté, voir `GUIDE_UTILISATION.md` (frontend).
@@ -11,7 +12,8 @@ de l'app une fois connecté, voir `GUIDE_UTILISATION.md` (frontend).
 Les exemples reprennent la ressource `Product` (la plus simple des
 ressources en place : Customers, Products, Ventes) comme fil rouge — pour
 une ressource avec des lignes imbriquées, s'inspirer plutôt de `Vente`/
-`VenteLigne`.
+`VenteLigne` ; pour une ressource avec lecture/écriture séparées via une
+vue DB, voir § 6.
 
 **Convention du projet : un fichier par classe**, à la manière Java,
 plutôt que des modules `models.py`/`serializers.py`/`views.py`
@@ -140,6 +142,7 @@ nouvelle app que si le domaine est vraiment différent.
        default_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
        class Meta:
+           db_table = 'product'
            ordering = ['name']
 
        def save(self, *args, **kwargs):
@@ -153,6 +156,14 @@ nouvelle app que si le domaine est vraiment différent.
 
    L'exporter dans `apps/ventes/models/__init__.py`
    (`from apps.ventes.models.product import Product`, + `__all__`).
+
+   **Toujours donner un `Meta.db_table` explicite, sans le préfixe
+   d'app** que Django ajoute par défaut (`<app_label>_<model>` —
+   `ventes_product`, `accounts_customer`...). Le nom court (`product`,
+   `customer`) est la convention du projet ; voir les migrations
+   `ventes/0008_rename_tables_drop_prefix.py` et
+   `accounts/0009_rename_tables_drop_prefix.py` pour l'historique du
+   renommage de toutes les tables existantes.
 
 2. **La séquence Postgres** — une migration `RunSQL` dédiée (le nom de la
    séquence doit correspondre exactement à celui passé à
@@ -444,6 +455,10 @@ construit à partir de `request.GET`, un concept HTTP — le modèle doit
 rester utilisable hors contexte API (admin, commande shell, signal) sans
 dépendre de DRF/django-filter.
 
+**Si la ressource a une vue de lecture séparée (§ 6)**, le `FilterSet`
+utilisé pour `list` doit cibler le modèle-vue (`Meta.model = ProductListView`,
+pas `Product`) — voir § 6.3.
+
 ---
 
 ## 5. Le viewset
@@ -471,6 +486,12 @@ class ProductViewSet(viewsets.ModelViewSet):
 Si la ressource n'a besoin que de recherche/tri (pas de filtre par
 intervalle ni multi-valeurs), omettre simplement `filterset_class` — voir
 `CustomerViewSet`, qui n'en a pas.
+
+**Ceci est le cas simple, une seule table pour la lecture et l'écriture.**
+Dès que `list`/`retrieve` ont besoin d'un champ résolu côté serveur (ex.
+`customer_name` à la place de l'id `customer` brut), voir § 6 —
+`serializer_class`/`queryset` ne restent pas des attributs de classe
+fixes dans ce cas.
 
 **Comment `HasRolePermission` sait quelle permission exiger** — elle
 déduit le `codename` Django à partir de l'action DRF et du modèle du
@@ -530,6 +551,10 @@ class VenteViewSet(viewsets.ModelViewSet):
   custom (voir tableau ci-dessus) — remplaçable en surchargeant
   `get_permissions()` sur le viewset si l'action a besoin d'une
   permission différente.
+- Si le viewset a une vue de lecture séparée (§ 6), une action custom qui
+  appelle `self.get_object()` doit retomber sur le **vrai** modèle, pas
+  la vue — voir § 6.3 (`get_queryset` retourne le modèle réel pour toute
+  action qui n'est pas `list`/`retrieve`).
 
 Exemple réel complet : `apps/ventes/views/vente_viewset.py` (`valider`/
 `annuler`).
@@ -617,7 +642,153 @@ isolée à chaque transition.
 
 ---
 
-## 6. Pagination
+## 6. Lecture/écriture séparées via une vue DB (optionnel)
+
+Dès que la page liste/détail du frontend a besoin d'un **libellé résolu**
+à partir d'un id (ex. afficher `customer_name` à côté de `customer`,
+plutôt que l'id brut ou un client qui va chercher tous les clients pour
+construire lui-même la correspondance id → nom), la solution du projet
+est une **vue SQL** (`CREATE OR REPLACE VIEW`, jamais matérialisée) qui
+fait la jointure une fois, côté base — pas un `SerializerMethodField`
+recalculé à chaque requête, ni un `resolvedOptions` côté frontend qui
+doit tout charger.
+
+Exemple réel complet : `Vente`/`VenteListView` (`apps/ventes/models/`,
+`apps/ventes/migrations/0007_list_views.py`, `apps/ventes/views/vente_viewset.py`).
+
+### 6.1. Le modèle unmanaged, mappé à la vue
+
+```python
+# apps/ventes/models/product_list_view.py
+from django.db import models
+
+class ProductListView(models.Model):
+    id = models.CharField(max_length=20, primary_key=True)
+    name = models.CharField(max_length=255)
+    category = models.CharField(max_length=20, null=True)
+    category_name = models.CharField(max_length=100, null=True)
+    # ... les autres colonnes de la vue, en lecture seule
+
+    class Meta:
+        managed = False          # Django ne touche jamais au schéma de ce "modèle"
+        db_table = 'product_list_view'   # nom de la vue, sans préfixe d'app (§ 1)
+        ordering = ['name']
+```
+
+`managed = False` : Django ne génère **aucun DDL** pour ce modèle — ni à
+la création (`CreateModel` devient une opération état-seul, voir § 6.2),
+ni si on renomme sa table plus tard (`AlterModelTable` devient aussi
+état-seul). C'est le `RunSQL` de la migration qui fait tout le travail
+réel.
+
+### 6.2. La migration : `CreateModel` (état) + `RunSQL` (le vrai travail)
+
+**Ne pas laisser `makemigrations` générer cette migration seul** — piège
+déjà rencontré sur ce projet : pour un modèle unmanaged, l'autodetector
+de Django a silencieusement supprimé un champ `ForeignKey` d'un
+`CreateModel` auto-généré (`VenteLigneListView.vente`), sans erreur ni
+avertissement. Écrire la migration à la main (voir
+`apps/ventes/migrations/0007_list_views.py` pour le cas "nouvelle vue",
+`apps/ventes/migrations/0008_rename_tables_drop_prefix.py` pour le cas
+"modifier une vue existante").
+
+**Nouvelle vue** :
+
+```python
+migrations.CreateModel(               # état seulement, aucun DDL (modèle managed=False)
+    name='ProductListView',
+    fields=[...],                     # recopier exactement les champs du modèle
+    options={'db_table': 'product_list_view', 'managed': False},
+),
+migrations.RunSQL(
+    sql="""
+        CREATE OR REPLACE VIEW product_list_view AS
+        SELECT p.id, p.name, p.category_id AS category, pc.name AS category_name, ...
+        FROM product p
+        LEFT JOIN product_category pc ON pc.id = p.category_id;
+    """,
+    reverse_sql="DROP VIEW IF EXISTS product_list_view;",
+),
+```
+
+**Modifier une vue existante** — le `reverse_sql` doit restaurer
+l'**ancienne définition complète**, pas juste un `DROP` (sinon
+`migrate <app> <migration_precedente>` casse la vue au lieu de la
+restaurer) :
+
+```python
+migrations.RunSQL(
+    sql="CREATE OR REPLACE VIEW product_list_view AS SELECT ... /* nouvelle définition */",
+    reverse_sql="CREATE OR REPLACE VIEW product_list_view AS SELECT ... /* ancienne définition */",
+),
+```
+
+**Dépendance croisée entre apps** — si le SQL de la vue référence une
+table d'une autre app (ex. une vue de `ventes` qui fait `JOIN customer`,
+table de `accounts`), et qu'une migration de cette autre app renomme
+cette table, ajouter une dépendance explicite dans `dependencies` pour
+forcer l'ordre — piège réel rencontré : `accounts.0009` (renommage de
+`accounts_customer` → `customer`) s'appliquait avant `ventes.0007`
+(création de la vue référençant encore l'ancien nom), cassant `migrate`
+sur une base vierge. Voir le commentaire dans
+`apps/accounts/migrations/0009_rename_tables_drop_prefix.py`.
+
+*(Écrire ces deux fichiers à la main reste fastidieux et source d'erreurs
+— une commande `make_view_migration` qui génère ce fichier automatiquement
+à partir du SQL est en cours de spécification, voir
+`A_faire_migrations_tooling.md` à la racine du repo de dev.)*
+
+### 6.3. Le serializer et le viewset
+
+Un `ModelSerializer` séparé, basé sur le modèle-vue :
+
+```python
+# apps/ventes/serializers/product_read_serializer.py
+class ProductReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductListView
+        fields = ['id', 'name', 'category', 'category_name', ...]
+```
+
+Le viewset bascule entre les deux serializers/querysets selon
+`self.action` — mais **`serializer_class` reste l'attribut de classe du
+serializer d'ÉCRITURE**, jamais surchargé :
+
+```python
+class ProductViewSet(viewsets.ModelViewSet):
+    # Reste le serializer d'écriture — `HasRolePermission` lit
+    # `view.serializer_class.Meta.model` (l'attribut de classe, pas
+    # `get_serializer_class()`) pour déduire le codename de permission
+    # (§ 5) ; s'il pointait vers le modèle-vue, les permissions
+    # chercheraient `view_productlistview` au lieu de `view_product`.
+    serializer_class = ProductSerializer
+    permission_classes = [HasRolePermission]
+
+    @property
+    def filterset_class(self):
+        # django-filter exige que `filterset.Meta.model` corresponde
+        # exactement au modèle du queryset — scopé à 'list' puisque
+        # `get_queryset` ci-dessous change de modèle selon l'action.
+        return ProductFilterSet if self.action == 'list' else None
+
+    def get_serializer_class(self):
+        if self.action in ('list', 'retrieve'):
+            return ProductReadSerializer
+        return ProductSerializer
+
+    def get_queryset(self):
+        if self.action in ('list', 'retrieve'):
+            return ProductListView.objects.all()
+        return Product.objects.select_related('category')
+```
+
+Et `ProductFilterSet.Meta.model` doit cibler `ProductListView`, pas
+`Product` (§ 4) — sinon l'assertion de django-filter échoue dès qu'un
+filtre est appliqué sur `list`.
+
+---
+
+## 7. Pagination
 
 Rien à déclarer dans le viewset : la pagination est **globale**, appliquée
 automatiquement à toute l'API par `config/settings.py` :
@@ -638,7 +809,7 @@ actuelle n'en a besoin).
 
 ---
 
-## 7. Enregistrer les routes
+## 8. Enregistrer les routes
 
 ```python
 # apps/ventes/urls.py
@@ -657,7 +828,7 @@ dans une app déjà branchée — sinon voir § 0).
 
 ---
 
-## 8. Donner la permission aux rôles par défaut
+## 9. Donner la permission aux rôles par défaut
 
 Sans cette étape, la ressource existe mais **personne n'y a accès** tant
 qu'un admin ne configure pas manuellement la matrice de permissions
@@ -681,20 +852,81 @@ mécanisme générique : protégés par `IsAdminRole` (vérifie directement
 `role.name == 'admin'`), pas par les permissions par modèle — voir
 `RoleViewSet`/`UserViewSet`.
 
+**Si la ressource a une vue de lecture séparée (§ 6)**, ne seeder que le
+modèle réel (`('ventes', 'product')`) — pas le modèle-vue
+(`productlistview`) : `HasRolePermission` ne vérifie jamais la
+permission sur le modèle-vue (§ 6.3), donc lui créer des permissions ne
+servirait à rien.
+
 ---
 
-## 9. Exposer les métadonnées (optionnel)
+## 10. Exposer les métadonnées (optionnel)
 
 Utilisé pour l'introspection `GET /api/meta/<resource>/` — ajouter le
 serializer dans `RESOURCE_SERIALIZER_MAP` d'`apps/core/views.py`.
 
 ---
 
-## 10. Tests
+## 11. Générer le schéma OpenAPI (pour le frontend)
+
+`drf-spectacular` génère automatiquement un schéma OpenAPI à partir des
+serializers/viewsets — c'est ce que `pagekit-showcase` consomme
+(`npm run generate:api-types`, voir son `GUIDE_DEVELOPPEUR.md`) pour
+produire les types TypeScript des entités **sans les recopier à la
+main**. Un `ModelSerializer` standard (§ 3) n'a besoin d'aucune
+annotation particulière, le schéma sort correct tel quel.
+
+**Régénérer après toute modification de serializer exposé** (champ
+ajouté/retiré/renommé) :
+
+```bash
+python manage.py spectacular --file schema.yml --fail-on-warn
+```
+
+`--fail-on-warn` fait échouer la commande sur le moindre avertissement —
+le lancer avant de committer `schema.yml`, pas seulement en local sans
+vérifier. Deux cas connus qui déclenchent un avertissement/une erreur :
+
+- **`SerializerMethodField`** — son type de retour n'est pas inférable
+  automatiquement, annoter avec `@extend_schema_field` :
+
+  ```python
+  from drf_spectacular.utils import extend_schema_field
+
+  @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+  def get_permissions(self, obj):
+      ...
+  ```
+
+- **Vue dont la forme de réponse dépend d'un paramètre runtime** (ex.
+  `MetaView`, dont le format dépend de `resource` dans l'URL) — pas une
+  entité, exclue purement et simplement du schéma :
+
+  ```python
+  from drf_spectacular.utils import extend_schema
+
+  @extend_schema(exclude=True)
+  def get(self, request, resource):
+      ...
+  ```
+
+**Le split lecture/écriture (§ 6) se reflète automatiquement dans le
+schéma** : `VenteReadSerializer`/`VenteSerializer` donnent deux composants
+distincts (`VenteRead`/`Vente`) — exactement le split `Vente`/`VenteForm`
+que `pagekit-showcase` a déjà côté frontend. Une ressource sans vue de
+lecture séparée (ex. `Customer`, `Role`) n'a qu'un seul composant partagé
+pour les deux sens ; ça reste utilisable côté frontend, avec une légère
+perte de précision (un champ optionnel à l'écriture est marqué `?` même
+s'il est toujours présent à la lecture) documentée dans le guide
+frontend.
+
+---
+
+## 12. Tests
 
 Voir `apps/accounts/tests.py`/`apps/ventes/tests.py` pour le pattern :
 pytest-django + `factory_boy` + `User.objects.create_user(...)` +
-assignation de rôle en dur pour tester les permissions par cas (24 tests
+assignation de rôle en dur pour tester les permissions par cas (29 tests
 au total actuellement). Commandes CI à lancer en local avant de pousser :
 
 ```bash
@@ -707,6 +939,6 @@ python -m pytest -q
 
 Une fois tout ça en place côté backend, la ressource est immédiatement
 utilisable côté frontend en suivant `GUIDE_DEVELOPPEUR.md` du dépôt
-`poc-vente-front` (`api.ts`/`hooks.ts` pointant vers les nouveaux
+`pagekit-showcase` (`resource.ts`/`fields.tsx` pointant vers les nouveaux
 endpoints `/api/<ressource>/`, filtres/tri/pagination consommant les
-paramètres exposés ici).
+paramètres exposés ici, types générés depuis le schéma OpenAPI § 11).
