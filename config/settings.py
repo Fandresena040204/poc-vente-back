@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     'django_filters',
+    'drf_spectacular',
     # Apps locales
     'apps.core',
     'apps.accounts',
@@ -112,6 +113,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'apps.core.pagination.StandardResultsPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_THROTTLE_CLASSES': (
         'rest_framework.throttling.UserRateThrottle',
         'rest_framework.throttling.AnonRateThrottle',
@@ -126,4 +128,16 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
+}
+
+# drf-spectacular: OpenAPI schema generated from the serializers/viewsets —
+# `manage.py spectacular --file schema.yml` feeds pagekit-showcase's
+# `npm run generate:types` (openapi-typescript), so frontend entity/form
+# types stay in sync with the backend instead of being hand-copied into
+# features/types.ts.
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'poc-django-tanstack API',
+    'DESCRIPTION': 'Ventes/accounts API — schema feeds pagekit-showcase TS type generation.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }

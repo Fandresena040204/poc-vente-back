@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -21,6 +22,12 @@ RESOURCE_SERIALIZER_MAP = {
 
 
 class MetaView(APIView):
+    # Excluded from the generated OpenAPI schema: its response shape
+    # depends on `resource` at runtime (introspects whichever serializer
+    # RESOURCE_SERIALIZER_MAP maps it to), which doesn't fit a fixed
+    # schema — and it's metadata, not an entity, so pagekit-showcase's
+    # generated types don't need it anyway.
+    @extend_schema(exclude=True)
     def get(self, request, resource):
         serializer_class = RESOURCE_SERIALIZER_MAP.get(resource)
         if serializer_class is None:
