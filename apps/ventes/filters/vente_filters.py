@@ -1,10 +1,16 @@
 from django_filters import rest_framework as filters
 
 from apps.core.filters import CharInFilter
-from apps.ventes.models import Vente
+from apps.ventes.models import VenteListView
 
 
 class VenteFilterSet(filters.FilterSet):
+    # Targets `VenteListView` (the DB view), not the writable `Vente` —
+    # `VenteViewSet` only applies this filterset for the `list` action,
+    # which now queries the view (see VenteViewSet.get_queryset/
+    # filterset_class). Field names below match the view's own columns,
+    # which mirror Vente's 1:1 except `customer` (plain CharField on the
+    # view instead of a ForeignKey).
     id = filters.CharFilter(field_name='id', lookup_expr='icontains')
     status = CharInFilter(field_name='status')
     priority = CharInFilter(field_name='priority')
@@ -24,7 +30,7 @@ class VenteFilterSet(filters.FilterSet):
     )
 
     class Meta:
-        model = Vente
+        model = VenteListView
         fields = [
             'id', 'status', 'priority', 'currency', 'customer', 'total_min', 'total_max',
             'expected_delivery_date_min', 'expected_delivery_date_max',

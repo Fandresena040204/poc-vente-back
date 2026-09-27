@@ -6,16 +6,16 @@ from apps.ventes.serializers.vente_ligne_serializer import VenteLigneSerializer
 
 
 class VenteSerializer(serializers.ModelSerializer):
+    """Write-only path (`create`/`update`) — `VenteViewSet.list`/`retrieve`
+    use `VenteReadSerializer` (backed by the `VenteListView` DB view)
+    instead, so this doesn't need a `customer_name` resolved field."""
+
     lines = VenteLigneSerializer(many=True)
-    # So the frontend never needs to fetch the whole Customer list just to
-    # resolve `customer` (an id) to a display label — see `customer_name`
-    # on the Vente list/detail pages.
-    customer_name = serializers.CharField(source='customer.name', read_only=True)
 
     class Meta:
         model = Vente
         fields = [
-            'id', 'customer', 'customer_name', 'status', 'priority', 'currency', 'discount_percent',
+            'id', 'customer', 'status', 'priority', 'currency', 'discount_percent',
             'subtotal_ht', 'discount_amount', 'tva_amount', 'total',
             'expected_delivery_date', 'notes', 'lines', 'created_at', 'updated_at',
         ]
