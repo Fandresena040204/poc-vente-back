@@ -22,6 +22,7 @@ class Livraison(TimestampedModel):
     tracking_number = models.CharField(max_length=64, blank=True)
 
     class Meta:
+        db_table = 'livraison'
         ordering = ['-created_at']
 
     def save(self, *args, **kwargs):

@@ -2,8 +2,8 @@ from django.db import models
 
 
 class ProductListView(models.Model):
-    """Read model backed by the `ventes_product_list_view` DB view (see
-    migration 0007) — `Product` joined with `ProductCategory` so
+    """Read model backed by the `product_list_view` DB view (see
+    migration 0008) — `Product` joined with `ProductCategory` so
     `category_name` is resolved in SQL, once, instead of the API computing
     it per-request (or the frontend fetching every category to resolve it
     itself). Read-only: `ProductViewSet` uses this for `list`/`retrieve`
@@ -23,7 +23,7 @@ class ProductListView(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'ventes_product_list_view'
+        db_table = 'product_list_view'
         ordering = ['name']
 
     def __str__(self):

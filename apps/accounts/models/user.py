@@ -20,12 +20,15 @@ class User(AbstractBaseUser):
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
 
-    roles = models.ManyToManyField(Role, related_name='users', blank=True)
+    roles = models.ManyToManyField(Role, related_name='users', blank=True, db_table='user_roles')
 
     objects = UserManager()
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']
+
+    class Meta:
+        db_table = 'user'
 
     def save(self, *args, **kwargs):
         if not self.id:

@@ -35,9 +35,9 @@ class VenteViewSet(viewsets.ModelViewSet):
         return VenteSerializer
 
     def get_queryset(self):
-        # `list`/`retrieve` read from the `ventes_vente_list_view` DB view
+        # `list`/`retrieve` read from the `vente_list_view` DB view
         # (customer_name/product_name/product_sku already resolved in SQL —
-        # see VenteListView/VenteLigneListView and migration 0007) instead
+        # see VenteListView/VenteLigneListView and migration 0008) instead
         # of the writable model + `select_related`/`prefetch_related`.
         # `create`/`update`/`valider`/`annuler` still need the real,
         # writable `Vente` (FSM transitions, `recalculate_total`, ...).

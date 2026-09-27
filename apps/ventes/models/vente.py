@@ -48,6 +48,7 @@ class Vente(AuditedModel):
     notes = models.TextField(blank=True)
 
     class Meta:
+        db_table = 'vente'
         ordering = ['-created_at']
 
     def save(self, *args, **kwargs):

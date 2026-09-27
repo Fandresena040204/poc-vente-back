@@ -2,8 +2,8 @@ from django.db import models
 
 
 class VenteListView(models.Model):
-    """Read model backed by the `ventes_vente_list_view` DB view (see
-    migration 0007) — `Vente` joined with `Customer` so `customer_name` is
+    """Read model backed by the `vente_list_view` DB view (see
+    migration 0008) — `Vente` joined with `Customer` so `customer_name` is
     resolved in SQL, once, instead of the API computing it per-request (or
     the frontend fetching every customer to resolve it itself). Read-only:
     `VenteViewSet` uses this for `list`/`retrieve` and the real `Vente`
@@ -33,7 +33,7 @@ class VenteListView(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'ventes_vente_list_view'
+        db_table = 'vente_list_view'
         ordering = ['-created_at']
 
     def __str__(self):
@@ -41,7 +41,7 @@ class VenteListView(models.Model):
 
 
 class VenteLigneListView(models.Model):
-    """Read model backed by `ventes_vente_ligne_list_view` — `VenteLigne`
+    """Read model backed by `vente_ligne_list_view` — `VenteLigne`
     joined with `Product` so `product_name`/`product_sku` are resolved in
     SQL. The `vente` FK targets `VenteListView` (not the writable `Vente`)
     so `VenteListView.lines` nests correctly in `VenteReadSerializer` —
@@ -67,7 +67,7 @@ class VenteLigneListView(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'ventes_vente_ligne_list_view'
+        db_table = 'vente_ligne_list_view'
 
     def __str__(self):
         return f'{self.quantity} x {self.product_name}'

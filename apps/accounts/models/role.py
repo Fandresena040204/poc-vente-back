@@ -7,9 +7,12 @@ from apps.core.utils import generate_reference
 class Role(models.Model):
     id = models.CharField(max_length=20, primary_key=True, editable=False)
     name = models.CharField(max_length=100, unique=True)
-    permissions = models.ManyToManyField(Permission, related_name='roles', blank=True)
+    permissions = models.ManyToManyField(
+        Permission, related_name='roles', blank=True, db_table='role_permissions'
+    )
 
     class Meta:
+        db_table = 'role'
         ordering = ['name']
 
     def save(self, *args, **kwargs):

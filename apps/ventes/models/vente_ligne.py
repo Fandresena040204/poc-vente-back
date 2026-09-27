@@ -14,6 +14,9 @@ class VenteLigne(models.Model):
     discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     tva_rate = models.DecimalField(max_digits=5, decimal_places=2, default=20)
 
+    class Meta:
+        db_table = 'vente_ligne'
+
     def save(self, *args, **kwargs):
         if not self.id:
             self.id = generate_reference('vente_ligne_id_seq', 'LGN')

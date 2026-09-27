@@ -9,6 +9,7 @@ class ProductCategory(TimestampedModel):
     name = models.CharField(max_length=100, unique=True)
 
     class Meta:
+        db_table = 'product_category'
         ordering = ['name']
         verbose_name_plural = 'product categories'
 

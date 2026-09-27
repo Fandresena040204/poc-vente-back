@@ -17,6 +17,7 @@ class Product(TimestampedModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        db_table = 'product'
         ordering = ['name']
 
     def save(self, *args, **kwargs):

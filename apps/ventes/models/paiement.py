@@ -23,6 +23,7 @@ class Paiement(TimestampedModel):
     reference = models.CharField(max_length=64, blank=True)
 
     class Meta:
+        db_table = 'paiement'
         ordering = ['-paid_at']
 
     def save(self, *args, **kwargs):
