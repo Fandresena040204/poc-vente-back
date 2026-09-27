@@ -13,7 +13,8 @@ class VenteViewSet(viewsets.ModelViewSet):
     serializer_class = VenteSerializer
     permission_classes = [HasRolePermission]
     filterset_class = VenteFilterSet
-    search_fields = ['id']
+    # No `search_fields`: `id` is its own filter (VenteFilterSet) rather
+    # than the global `search=`.
     ordering_fields = ['created_at', 'total', 'priority', 'expected_delivery_date']
 
     def get_queryset(self):

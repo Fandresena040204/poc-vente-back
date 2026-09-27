@@ -5,6 +5,7 @@ from apps.ventes.models import Vente
 
 
 class VenteFilterSet(filters.FilterSet):
+    id = filters.CharFilter(field_name='id', lookup_expr='icontains')
     status = CharInFilter(field_name='status')
     priority = CharInFilter(field_name='priority')
     currency = CharInFilter(field_name='currency')
@@ -25,6 +26,6 @@ class VenteFilterSet(filters.FilterSet):
     class Meta:
         model = Vente
         fields = [
-            'status', 'priority', 'currency', 'customer', 'total_min', 'total_max',
+            'id', 'status', 'priority', 'currency', 'customer', 'total_min', 'total_max',
             'expected_delivery_date_min', 'expected_delivery_date_max',
         ]

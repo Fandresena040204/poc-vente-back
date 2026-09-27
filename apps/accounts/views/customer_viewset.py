@@ -11,5 +11,6 @@ class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
     permission_classes = [HasRolePermission]
     filterset_class = CustomerFilterSet
-    search_fields = ['name', 'email', 'city']
+    # No `search_fields`: name/email are their own filters
+    # (CustomerFilterSet) rather than the global `search=`.
     ordering_fields = ['name', 'created_at', 'birth_date']

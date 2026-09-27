@@ -15,7 +15,8 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserListSerializer
     permission_classes = [IsAdminRole]
     filterset_class = UserFilterSet
-    search_fields = ['username']
+    # No `search_fields`: `username` is its own filter (UserFilterSet)
+    # rather than the global `search=`.
     ordering_fields = ['username', 'date_joined']
 
     def get_queryset(self):
