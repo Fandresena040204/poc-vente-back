@@ -1,8 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.models import Group
 
 from apps.accounts.forms import UserChangeForm, UserCreationForm
 from apps.accounts.models import Customer, Role, User
+
+# Django's auth app registers Group in the admin as a side effect of
+# importing django.contrib.auth.admin (above) — unregister it since the
+# underlying auth_group table is dropped (migration 0010): Role replaces
+# Group here, and leaving this registered would 500 on /admin/auth/group/.
+admin.site.unregister(Group)
 
 
 class UserAdmin(DjangoUserAdmin):
