@@ -10,7 +10,8 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [HasRolePermission]
     filterset_class = ProductFilterSet
-    search_fields = ['name', 'sku']
+    # No `search_fields`: `name`/`sku` are independent filters
+    # (ProductFilterSet) instead of one combined global `search=`.
     ordering_fields = ['name', 'default_price', 'created_at']
 
     def get_queryset(self):
