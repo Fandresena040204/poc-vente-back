@@ -1,3 +1,4 @@
+from apps.ventes.serializers.fournisseur_serializer import FournisseurSerializer
 from apps.ventes.serializers.livraison_serializer import LivraisonSerializer
 from apps.ventes.serializers.paiement_serializer import PaiementSerializer
 from apps.ventes.serializers.product_category_serializer import ProductCategorySerializer
@@ -9,6 +10,7 @@ from apps.ventes.serializers.vente_read_serializer import VenteReadSerializer
 from apps.ventes.serializers.vente_serializer import VenteSerializer
 
 __all__ = [
+    'FournisseurSerializer',
     'LivraisonSerializer',
     'PaiementSerializer',
     'ProductCategorySerializer',

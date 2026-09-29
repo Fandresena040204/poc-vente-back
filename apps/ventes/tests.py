@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Role
 from apps.ventes.factories import (
     CustomerFactory,
+    FournisseurFactory,
     LivraisonFactory,
     ProductFactory,
     VenteFactory,
@@ -202,3 +203,50 @@ def test_annuler_action_requires_change_permission():
     response = client.post(f'/api/ventes/{vente.id}/annuler/')
 
     assert response.status_code == 403
+
+
+def test_create_fournisseur(api_client):
+    payload = {'name': 'Grossiste SARL', 'email': 'contact@grossiste.test', 'is_active': True}
+
+    response = api_client.post('/api/fournisseurs/', payload, format='json')
+
+    assert response.status_code == 201, response.data
+    assert response.data['name'] == 'Grossiste SARL'
+    assert response.data['is_active'] is True
+
+
+def test_list_fournisseurs(api_client):
+    FournisseurFactory.create_batch(3)
+
+    response = api_client.get('/api/fournisseurs/')
+
+    assert response.status_code == 200
+    assert response.data['count'] == 3
+
+
+def test_fournisseur_delete_requires_delete_permission():
+    user_role_holder = get_user_model().objects.create_user(
+        username='fournisseur_user', password='pass1234'
+    )
+    user_role_holder.roles.add(Role.objects.get(name='user'))
+    client = APIClient()
+    client.force_authenticate(user=user_role_holder)
+    fournisseur = FournisseurFactory()
+
+    response = client.delete(f'/api/fournisseurs/{fournisseur.id}/')
+
+    assert response.status_code == 403
+
+
+def test_fournisseur_delete_allowed_for_admin():
+    admin_user = get_user_model().objects.create_user(
+        username='fournisseur_admin', password='pass1234'
+    )
+    admin_user.roles.add(Role.objects.get(name='admin'))
+    client = APIClient()
+    client.force_authenticate(user=admin_user)
+    fournisseur = FournisseurFactory()
+
+    response = client.delete(f'/api/fournisseurs/{fournisseur.id}/')
+
+    assert response.status_code == 204

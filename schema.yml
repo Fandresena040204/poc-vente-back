@@ -278,6 +278,170 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/fournisseurs/:
+    get:
+      operationId: fournisseurs_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Quel champ utiliser pour classer les résultats.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: Un numéro de page de l'ensemble des résultats.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Nombre de résultats à retourner par page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: Un terme de recherche.
+        schema:
+          type: string
+      tags:
+      - fournisseurs
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFournisseurList'
+          description: ''
+    post:
+      operationId: fournisseurs_create
+      tags:
+      - fournisseurs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Fournisseur'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Fournisseur'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Fournisseur'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fournisseur'
+          description: ''
+  /api/fournisseurs/{id}/:
+    get:
+      operationId: fournisseurs_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) fournisseur.
+        required: true
+      tags:
+      - fournisseurs
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fournisseur'
+          description: ''
+    put:
+      operationId: fournisseurs_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) fournisseur.
+        required: true
+      tags:
+      - fournisseurs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Fournisseur'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Fournisseur'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Fournisseur'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fournisseur'
+          description: ''
+    patch:
+      operationId: fournisseurs_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) fournisseur.
+        required: true
+      tags:
+      - fournisseurs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFournisseur'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFournisseur'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFournisseur'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fournisseur'
+          description: ''
+    delete:
+      operationId: fournisseurs_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) fournisseur.
+        required: true
+      tags:
+      - fournisseurs
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/livraisons/:
     get:
       operationId: livraisons_list
@@ -1694,6 +1858,37 @@ components:
       - id
       - name
       - updated_at
+    Fournisseur:
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - updated_at
     Livraison:
       type: object
       properties:
@@ -1770,6 +1965,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Customer'
+    PaginatedFournisseurList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Fournisseur'
     PaginatedLivraisonList:
       type: object
       required:
@@ -1994,6 +2212,32 @@ components:
           type: string
           format: date
           nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedFournisseur:
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
         is_active:
           type: boolean
         created_at:
