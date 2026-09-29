@@ -34,7 +34,6 @@ def seed_fournisseur_permissions(apps, schema_editor):
     if editor_role:
         editor_role.permissions.add(*perms(['add', 'view', 'change']))
 
-
 def unseed_fournisseur_permissions(apps, schema_editor):
     Role = apps.get_model('accounts', 'Role')
     Permission = apps.get_model('auth', 'Permission')
