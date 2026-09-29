@@ -1,6 +1,7 @@
 from rest_framework.routers import DefaultRouter
 
 from apps.ventes.views import (
+    FournisseurViewSet,
     LivraisonViewSet,
     PaiementViewSet,
     ProductCategoryViewSet,
@@ -14,5 +15,6 @@ router.register('products', ProductViewSet, basename='product')
 router.register('product-categories', ProductCategoryViewSet, basename='productcategory')
 router.register('livraisons', LivraisonViewSet, basename='livraison')
 router.register('paiements', PaiementViewSet, basename='paiement')
+router.register('fournisseurs', FournisseurViewSet, basename='fournisseur')
 
 urlpatterns = router.urls
