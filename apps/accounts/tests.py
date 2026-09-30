@@ -2,7 +2,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.accounts.models import Role
+from apps.accounts.models import Customer, Permission, Role, UserPermissionOverride
 from apps.accounts.permissions import ADMIN_ROLE_NAME
 
 pytestmark = pytest.mark.django_db
@@ -14,6 +14,10 @@ def make_admin(user):
     role, _ = Role.objects.get_or_create(name=ADMIN_ROLE_NAME)
     user.roles.add(role)
     return user
+
+
+def customer_permission(codename):
+    return Permission.objects.get(app_label='accounts', model='customer', codename=codename)
 
 
 def test_register_creates_user_and_returns_tokens():
@@ -197,3 +201,103 @@ def test_regular_user_without_admin_role_is_forbidden():
     response = client.get('/api/roles/')
 
     assert response.status_code == 403
+
+
+# --- Permission overrides (user_permission_overrides) ---
+
+def test_role_permission_denied_by_deny_override():
+    user = User.objects.create_user(username='denied_user', password='pass1234')
+    user.roles.add(Role.objects.get(name='user'))  # le rôle autorise add_customer
+    permission = customer_permission('add_customer')
+    UserPermissionOverride.objects.create(user=user, permission=permission, is_allowed=False)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post(
+        '/api/customers/', {'name': 'Acme Corp', 'email': 'contact@acme.test'}, format='json'
+    )
+
+    assert response.status_code == 403
+
+
+def test_role_permission_granted_by_allow_override():
+    user = User.objects.create_user(username='allowed_user', password='pass1234')
+    user.roles.add(Role.objects.get(name='user'))  # le rôle n'autorise PAS delete_customer
+    customer = Customer.objects.create(name='Acme Corp')
+    permission = customer_permission('delete_customer')
+    UserPermissionOverride.objects.create(user=user, permission=permission, is_allowed=True)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.delete(f'/api/customers/{customer.id}/')
+
+    assert response.status_code == 204
+
+
+def test_me_reflects_permission_overrides():
+    user = User.objects.create_user(username='override_carol', password='pass1234')
+    user.roles.add(Role.objects.get(name='user'))
+    deny_permission = customer_permission('add_customer')
+    allow_permission = customer_permission('delete_customer')
+    UserPermissionOverride.objects.create(user=user, permission=deny_permission, is_allowed=False)
+    UserPermissionOverride.objects.create(user=user, permission=allow_permission, is_allowed=True)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get('/api/auth/me/')
+
+    assert response.status_code == 200
+    assert 'add_customer' not in response.data['permissions']
+    assert 'delete_customer' in response.data['permissions']
+    overrides = {o['permission']: o['is_allowed'] for o in response.data['permission_overrides']}
+    assert overrides == {'add_customer': False, 'delete_customer': True}
+
+
+def test_set_permission_override_replaces_existing_one():
+    admin = make_admin(User.objects.create_user(username='override_admin', password='pass1234'))
+    target = User.objects.create_user(username='override_target', password='pass1234')
+    permission = customer_permission('delete_customer')
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    first = client.post(
+        f'/api/users/{target.id}/set_permission_override/',
+        {'permission': 'delete_customer', 'is_allowed': True},
+        format='json',
+    )
+    assert first.status_code == 200, first.data
+
+    second = client.post(
+        f'/api/users/{target.id}/set_permission_override/',
+        {'permission': 'delete_customer', 'is_allowed': False},
+        format='json',
+    )
+    assert second.status_code == 200, second.data
+
+    assert UserPermissionOverride.objects.filter(user=target, permission=permission).count() == 1
+    override = UserPermissionOverride.objects.get(user=target, permission=permission)
+    assert override.is_allowed is False
+
+
+def test_clear_permission_override_reverts_to_role_behavior():
+    admin = make_admin(User.objects.create_user(username='clear_admin', password='pass1234'))
+    target = User.objects.create_user(username='clear_target', password='pass1234')
+    target.roles.add(Role.objects.get(name='user'))
+    permission = customer_permission('delete_customer')
+    UserPermissionOverride.objects.create(user=target, permission=permission, is_allowed=True)
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        f'/api/users/{target.id}/clear_permission_override/',
+        {'permission': 'delete_customer'},
+        format='json',
+    )
+
+    assert response.status_code == 200, response.data
+    assert not UserPermissionOverride.objects.filter(user=target, permission=permission).exists()
+
+
+def test_create_custom_permissions_signal_creates_four_permissions_per_model():
+    assert Permission.objects.filter(app_label='accounts', model='customer').count() == 4
+    assert Permission.objects.filter(app_label='ventes', model='vente').count() == 4
