@@ -94,6 +94,16 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('accounts', '0010_drop_unused_auth_group_tables'),
+        # ventes/0005_seed_fournisseur_permissions doit avoir tourné (et créé
+        # ses liens role<->permission sur l'ancien auth.Permission) avant que
+        # capture_role_permission_links ci-dessous ne lise ces liens — sans
+        # cette dépendance explicite (apps différentes, sinon non ordonnées
+        # l'une par rapport à l'autre), le plan de migration peut placer
+        # cette migration avant 0005 : les permissions fournisseur seraient
+        # alors perdues (jamais capturées) et 0005 planterait en tentant
+        # d'ajouter d'anciennes instances Permission à un Role.permissions
+        # déjà retargeté vers le nouveau modèle.
+        ('ventes', '0005_seed_fournisseur_permissions'),
     ]
 
     operations = [
