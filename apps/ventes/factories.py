@@ -1,7 +1,15 @@
 import factory
 
 from apps.accounts.models import Customer
-from apps.ventes.models import Livraison, Paiement, Product, ProductCategory, Vente, VenteLigne
+from apps.ventes.models import (
+    Fournisseur,
+    Livraison,
+    Paiement,
+    Product,
+    ProductCategory,
+    Vente,
+    VenteLigne,
+)
 
 
 class CustomerFactory(factory.django.DjangoModelFactory):
@@ -27,6 +35,15 @@ class ProductFactory(factory.django.DjangoModelFactory):
     sku = factory.Sequence(lambda n: f'SKU-{n:05d}')
     default_price = 10
     category = factory.SubFactory(ProductCategoryFactory)
+
+
+class FournisseurFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Fournisseur
+
+    name = factory.Faker('company')
+    email = factory.Faker('email')
+    is_active = True
 
 
 class VenteFactory(factory.django.DjangoModelFactory):
