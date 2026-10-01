@@ -1,3 +1,5 @@
+from apps.ventes.models.bon_commande import BonCommande
+from apps.ventes.models.bon_commande_ligne import BonCommandeLigne
 from apps.ventes.models.fournisseur import Fournisseur
 from apps.ventes.models.livraison import Livraison, LivraisonStatus
 from apps.ventes.models.paiement import Paiement, PaiementMethod
@@ -9,6 +11,8 @@ from apps.ventes.models.vente_ligne import VenteLigne
 from apps.ventes.models.vente_list_view import VenteLigneListView, VenteListView
 
 __all__ = [
+    'BonCommande',
+    'BonCommandeLigne',
     'Fournisseur',
     'Livraison',
     'LivraisonStatus',
@@ -23,4 +27,5 @@ __all__ = [
     'VenteLigne',
     'VenteLigneListView',
     'VenteListView',
+
 ]

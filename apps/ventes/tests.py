@@ -8,6 +8,8 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import Role
 from apps.ventes.factories import (
+    BonCommandeFactory,
+    BonCommandeLigneFactory,
     CustomerFactory,
     FournisseurFactory,
     LivraisonFactory,
@@ -250,3 +252,16 @@ def test_fournisseur_delete_allowed_for_admin():
     response = client.delete(f'/api/fournisseurs/{fournisseur.id}/')
 
     assert response.status_code == 204
+
+
+def test_to_vente_defaults_returns_shaped_payload(api_client):
+    bon = BonCommandeFactory(currency='EUR', discount_percent=Decimal('5'))
+    BonCommandeLigneFactory(bon_commande=bon, quantity=Decimal('2'), unit_price=Decimal('15.00'))
+
+    response = api_client.get(f'/api/bons-commande/{bon.id}/to_vente_defaults/')
+
+    assert response.status_code == 200
+    assert response.data['customer'] == bon.customer_id
+    assert response.data['currency'] == 'EUR'
+    assert len(response.data['lines']) == 1
+    assert response.data['lines'][0]['quantity'] == Decimal('2')

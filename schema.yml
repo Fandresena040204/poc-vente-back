@@ -93,6 +93,191 @@ paths:
               schema:
                 $ref: '#/components/schemas/Register'
           description: ''
+  /api/bons-commande/:
+    get:
+      operationId: bons_commande_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Quel champ utiliser pour classer les résultats.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: Un numéro de page de l'ensemble des résultats.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Nombre de résultats à retourner par page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: Un terme de recherche.
+        schema:
+          type: string
+      tags:
+      - bons-commande
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBonCommandeList'
+          description: ''
+    post:
+      operationId: bons_commande_create
+      tags:
+      - bons-commande
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BonCommande'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BonCommande'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BonCommande'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BonCommande'
+          description: ''
+  /api/bons-commande/{id}/:
+    get:
+      operationId: bons_commande_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) bon commande.
+        required: true
+      tags:
+      - bons-commande
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BonCommande'
+          description: ''
+    put:
+      operationId: bons_commande_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) bon commande.
+        required: true
+      tags:
+      - bons-commande
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BonCommande'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BonCommande'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BonCommande'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BonCommande'
+          description: ''
+    patch:
+      operationId: bons_commande_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) bon commande.
+        required: true
+      tags:
+      - bons-commande
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBonCommande'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBonCommande'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBonCommande'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BonCommande'
+          description: ''
+    delete:
+      operationId: bons_commande_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) bon commande.
+        required: true
+      tags:
+      - bons-commande
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/bons-commande/{id}/to_vente_defaults/:
+    get:
+      operationId: bons_commande_to_vente_defaults_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) bon commande.
+        required: true
+      tags:
+      - bons-commande
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BonCommande'
+          description: ''
   /api/customers/:
     get:
       operationId: customers_list
@@ -1804,6 +1989,69 @@ paths:
           description: ''
 components:
   schemas:
+    BonCommande:
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        customer:
+          type: string
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+        discount_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        expected_delivery_date:
+          type: string
+          format: date
+          nullable: true
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/BonCommandeLigne'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - customer
+      - id
+      - lines
+      - updated_at
+    BonCommandeLigne:
+      type: object
+      properties:
+        id:
+          type: string
+        product:
+          type: string
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        discount_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        tva_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+      required:
+      - product
+      - quantity
+      - unit_price
     CurrencyEnum:
       enum:
       - MGA
@@ -1942,6 +2190,29 @@ components:
         * `cash` - Espèces
         * `card` - Carte
         * `transfer` - Virement
+    PaginatedBonCommandeList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BonCommande'
     PaginatedCustomerList:
       type: object
       required:
@@ -2183,6 +2454,36 @@ components:
       - id
       - updated_at
       - vente
+    PatchedBonCommande:
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        customer:
+          type: string
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+        discount_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        expected_delivery_date:
+          type: string
+          format: date
+          nullable: true
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/BonCommandeLigne'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
     PatchedCustomer:
       type: object
       properties:

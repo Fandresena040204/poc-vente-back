@@ -2,6 +2,8 @@ import factory
 
 from apps.accounts.models import Customer
 from apps.ventes.models import (
+    BonCommande,
+    BonCommandeLigne,
     Fournisseur,
     Livraison,
     Paiement,
@@ -58,6 +60,23 @@ class VenteLigneFactory(factory.django.DjangoModelFactory):
         model = VenteLigne
 
     vente = factory.SubFactory(VenteFactory)
+    product = factory.SubFactory(ProductFactory)
+    quantity = 1
+    unit_price = 10
+
+
+class BonCommandeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BonCommande
+
+    customer = factory.SubFactory(CustomerFactory)
+
+
+class BonCommandeLigneFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BonCommandeLigne
+
+    bon_commande = factory.SubFactory(BonCommandeFactory)
     product = factory.SubFactory(ProductFactory)
     quantity = 1
     unit_price = 10
