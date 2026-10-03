@@ -1,4 +1,8 @@
 from apps.ventes.serializers.bon_commande_ligne_serializer import BonCommandeLigneSerializer
+from apps.ventes.serializers.bon_commande_read_serializer import (
+    BonCommandeLigneReadSerializer,
+    BonCommandeReadSerializer,
+)
 from apps.ventes.serializers.bon_commande_serializer import BonCommandeSerializer
 from apps.ventes.serializers.fournisseur_serializer import FournisseurSerializer
 from apps.ventes.serializers.livraison_serializer import LivraisonSerializer
@@ -12,7 +16,9 @@ from apps.ventes.serializers.vente_read_serializer import VenteReadSerializer
 from apps.ventes.serializers.vente_serializer import VenteSerializer
 
 __all__ = [
+    'BonCommandeLigneReadSerializer',
     'BonCommandeLigneSerializer',
+    'BonCommandeReadSerializer',
     'BonCommandeSerializer',
     'FournisseurSerializer',
     'LivraisonSerializer',
