@@ -253,49 +253,89 @@ def test_me_reflects_permission_overrides():
     assert overrides == {'add_customer': False, 'delete_customer': True}
 
 
-def test_set_permission_override_replaces_existing_one():
+def test_set_permission_overrides_replaces_the_whole_set():
     admin = make_admin(User.objects.create_user(username='override_admin', password='pass1234'))
     target = User.objects.create_user(username='override_target', password='pass1234')
-    permission = customer_permission('delete_customer')
-    client = APIClient()
-    client.force_authenticate(user=admin)
-
-    first = client.post(
-        f'/api/users/{target.id}/set_permission_override/',
-        {'permission': 'delete_customer', 'is_allowed': True},
-        format='json',
-    )
-    assert first.status_code == 200, first.data
-
-    second = client.post(
-        f'/api/users/{target.id}/set_permission_override/',
-        {'permission': 'delete_customer', 'is_allowed': False},
-        format='json',
-    )
-    assert second.status_code == 200, second.data
-
-    assert UserPermissionOverride.objects.filter(user=target, permission=permission).count() == 1
-    override = UserPermissionOverride.objects.get(user=target, permission=permission)
-    assert override.is_allowed is False
-
-
-def test_clear_permission_override_reverts_to_role_behavior():
-    admin = make_admin(User.objects.create_user(username='clear_admin', password='pass1234'))
-    target = User.objects.create_user(username='clear_target', password='pass1234')
-    target.roles.add(Role.objects.get(name='user'))
-    permission = customer_permission('delete_customer')
-    UserPermissionOverride.objects.create(user=target, permission=permission, is_allowed=True)
+    delete_perm = customer_permission('delete_customer')
+    add_perm = customer_permission('add_customer')
+    UserPermissionOverride.objects.create(user=target, permission=delete_perm, is_allowed=True)
     client = APIClient()
     client.force_authenticate(user=admin)
 
     response = client.post(
-        f'/api/users/{target.id}/clear_permission_override/',
-        {'permission': 'delete_customer'},
+        f'/api/users/{target.id}/set_permission_overrides/',
+        {'overrides': [{'permission': 'add_customer', 'is_allowed': False}]},
         format='json',
     )
 
     assert response.status_code == 200, response.data
-    assert not UserPermissionOverride.objects.filter(user=target, permission=permission).exists()
+    assert not UserPermissionOverride.objects.filter(user=target, permission=delete_perm).exists()
+    override = UserPermissionOverride.objects.get(user=target, permission=add_perm)
+    assert override.is_allowed is False
+
+
+def test_set_permission_overrides_empty_list_clears_everything():
+    admin = make_admin(User.objects.create_user(username='clear_admin', password='pass1234'))
+    target = User.objects.create_user(username='clear_target', password='pass1234')
+    UserPermissionOverride.objects.create(
+        user=target, permission=customer_permission('delete_customer'), is_allowed=True
+    )
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        f'/api/users/{target.id}/set_permission_overrides/', {'overrides': []}, format='json'
+    )
+
+    assert response.status_code == 200, response.data
+    assert not UserPermissionOverride.objects.filter(user=target).exists()
+
+
+def test_set_permission_overrides_rejects_unknown_codename_and_writes_nothing():
+    admin = make_admin(User.objects.create_user(username='reject_admin', password='pass1234'))
+    target = User.objects.create_user(username='reject_target', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        f'/api/users/{target.id}/set_permission_overrides/',
+        {'overrides': [{'permission': 'add_customer', 'is_allowed': True},
+                       {'permission': 'inconnu', 'is_allowed': True}]},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert not UserPermissionOverride.objects.filter(user=target).exists()
+
+
+def test_set_roles_replaces_the_whole_set():
+    admin = make_admin(User.objects.create_user(username='roles_admin', password='pass1234'))
+    target = User.objects.create_user(username='roles_target', password='pass1234')
+    target.roles.add(Role.objects.get(name='user'))
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        f'/api/users/{target.id}/set_roles/', {'roles': ['admin']}, format='json'
+    )
+
+    assert response.status_code == 200, response.data
+    assert list(target.roles.values_list('name', flat=True)) == ['admin']
+
+
+def test_set_roles_rejects_unknown_role_and_changes_nothing():
+    admin = make_admin(User.objects.create_user(username='roles_reject_admin', password='pass1234'))
+    target = User.objects.create_user(username='roles_reject_target', password='pass1234')
+    target.roles.add(Role.objects.get(name='user'))
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        f'/api/users/{target.id}/set_roles/', {'roles': ['admin', 'inconnu']}, format='json'
+    )
+
+    assert response.status_code == 400
+    assert list(target.roles.values_list('name', flat=True)) == ['user']
 
 
 def test_create_custom_permissions_signal_creates_four_permissions_per_model():

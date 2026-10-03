@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.shortcuts import get_object_or_404
+from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -58,19 +58,41 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return self._set_role(request, pk, 'remove')
 
     @action(detail=True, methods=['post'])
-    def set_permission_override(self, request, pk=None):
+    def set_roles(self, request, pk=None):
         user = self.get_object()
-        permission = get_object_or_404(Permission, codename=request.data['permission'])
-        UserPermissionOverride.objects.update_or_create(
-            user=user,
-            permission=permission,
-            defaults={'is_allowed': request.data['is_allowed']},
-        )
-        return Response(UserSerializer(user).data)
+        role_names = request.data.get('roles', [])
+        roles = list(Role.objects.filter(name__in=role_names))
+        if len(roles) != len(set(role_names)):
+            return Response(
+                {'detail': "Un ou plusieurs rôles sont introuvables."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user.roles.set(roles)
+        return Response(UserListSerializer(user).data)
 
     @action(detail=True, methods=['post'])
-    def clear_permission_override(self, request, pk=None):
+    def set_permission_overrides(self, request, pk=None):
+        # Remplace TOUTES les exceptions de l'utilisateur d'un coup (pas
+        # d'état "hérité" stocké : une permission absente de la liste
+        # revient au comportement du rôle). Atomique : un Enregistrer ne
+        # laisse jamais un état à moitié écrit.
         user = self.get_object()
-        permission = get_object_or_404(Permission, codename=request.data['permission'])
-        UserPermissionOverride.objects.filter(user=user, permission=permission).delete()
+        overrides = request.data.get('overrides', [])
+        codenames = [o['permission'] for o in overrides]
+        permissions = {p.codename: p for p in Permission.objects.filter(codename__in=codenames)}
+        if len(permissions) != len(set(codenames)):
+            return Response(
+                {'detail': "Une ou plusieurs permissions sont introuvables."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        with transaction.atomic():
+            UserPermissionOverride.objects.filter(user=user).delete()
+            UserPermissionOverride.objects.bulk_create([
+                UserPermissionOverride(
+                    user=user,
+                    permission=permissions[o['permission']],
+                    is_allowed=bool(o['is_allowed']),
+                )
+                for o in overrides
+            ])
         return Response(UserSerializer(user).data)
