@@ -1,8 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.models import Group
 
 from apps.accounts.forms import UserChangeForm, UserCreationForm
 from apps.accounts.models import Customer, Role, User
+
+# Django's auth app registers Group in the admin as a side effect of
+# importing django.contrib.auth.admin (above) — unregister it since the
+# underlying auth_group table is dropped (migration 0010): Role replaces
+# Group here, and leaving this registered would 500 on /admin/auth/group/.
+admin.site.unregister(Group)
 
 
 class UserAdmin(DjangoUserAdmin):
@@ -12,7 +19,7 @@ class UserAdmin(DjangoUserAdmin):
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Informations personnelles', {'fields': ('first_name', 'last_name', 'email')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'roles')}),
+        ('Permissions', {'fields': ('is_active', 'roles')}),
         ('Dates importantes', {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = (
@@ -20,12 +27,12 @@ class UserAdmin(DjangoUserAdmin):
             None,
             {
                 'classes': ('wide',),
-                'fields': ('username', 'email', 'password1', 'password2', 'is_staff'),
+                'fields': ('username', 'email', 'password1', 'password2'),
             },
         ),
     )
-    list_display = ['username', 'email', 'first_name', 'last_name', 'is_staff']
-    list_filter = ['is_staff', 'is_active']
+    list_display = ['username', 'email', 'first_name', 'last_name']
+    list_filter = ['is_active']
     filter_horizontal = ('roles',)
     ordering = ['username']
 

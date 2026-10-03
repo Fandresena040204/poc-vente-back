@@ -1,7 +1,17 @@
 import factory
 
 from apps.accounts.models import Customer
-from apps.ventes.models import Product, Vente, VenteLigne
+from apps.ventes.models import (
+    BonCommande,
+    BonCommandeLigne,
+    Fournisseur,
+    Livraison,
+    Paiement,
+    Product,
+    ProductCategory,
+    Vente,
+    VenteLigne,
+)
 
 
 class CustomerFactory(factory.django.DjangoModelFactory):
@@ -12,6 +22,22 @@ class CustomerFactory(factory.django.DjangoModelFactory):
     email = factory.Faker('email')
 
 
+class FournisseurFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Fournisseur
+
+    name = factory.Faker('company')
+    email = factory.Faker('email')
+    is_active = True
+
+
+class ProductCategoryFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = ProductCategory
+
+    name = factory.Sequence(lambda n: f'Catégorie {n}')
+
+
 class ProductFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Product
@@ -19,6 +45,7 @@ class ProductFactory(factory.django.DjangoModelFactory):
     name = factory.Faker('word')
     sku = factory.Sequence(lambda n: f'SKU-{n:05d}')
     default_price = 10
+    category = factory.SubFactory(ProductCategoryFactory)
 
 
 class VenteFactory(factory.django.DjangoModelFactory):
@@ -36,3 +63,35 @@ class VenteLigneFactory(factory.django.DjangoModelFactory):
     product = factory.SubFactory(ProductFactory)
     quantity = 1
     unit_price = 10
+
+
+class BonCommandeFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BonCommande
+
+    customer = factory.SubFactory(CustomerFactory)
+
+
+class BonCommandeLigneFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BonCommandeLigne
+
+    bon_commande = factory.SubFactory(BonCommandeFactory)
+    product = factory.SubFactory(ProductFactory)
+    quantity = 1
+    unit_price = 10
+
+
+class LivraisonFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Livraison
+
+    vente = factory.SubFactory(VenteFactory)
+
+
+class PaiementFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Paiement
+
+    vente = factory.SubFactory(VenteFactory)
+    amount = 10

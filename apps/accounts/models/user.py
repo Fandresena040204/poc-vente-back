@@ -17,29 +17,31 @@ class User(AbstractBaseUser):
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
 
-    roles = models.ManyToManyField(Role, related_name='users', blank=True)
+    roles = models.ManyToManyField(Role, related_name='users', blank=True, db_table='user_roles')
 
     objects = UserManager()
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']
 
+    class Meta:
+        db_table = 'user'
+
     def save(self, *args, **kwargs):
         if not self.id:
             self.id = generate_reference('user_id_seq', 'USR')
         super().save(*args, **kwargs)
 
-    def has_perm(self, perm, obj=None):
-        return self.is_staff
-
-    def has_perms(self, perm_list, obj=None):
-        return self.is_staff
-
-    def has_module_perms(self, app_label):
-        return self.is_staff
+    @property
+    def is_staff(self):
+        # Pas un vrai champ : l'admin Django n'est plus utilisé pour gérer
+        # quoi que ce soit côté accounts (§0.1) — cette propriété évite
+        # juste un AttributeError dans AdminSite.has_permission (qui lit
+        # request.user.is_staff en interne), pour que /admin/ refuse
+        # proprement l'accès plutôt que de planter en 500.
+        return False
 
     def get_full_name(self):
         return f'{self.first_name} {self.last_name}'.strip()

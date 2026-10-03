@@ -6,12 +6,23 @@ from apps.ventes.serializers.vente_ligne_serializer import VenteLigneSerializer
 
 
 class VenteSerializer(serializers.ModelSerializer):
+    """Write-only path (`create`/`update`) — `VenteViewSet.list`/`retrieve`
+    use `VenteReadSerializer` (backed by the `VenteListView` DB view)
+    instead, so this doesn't need a `customer_name` resolved field."""
+
     lines = VenteLigneSerializer(many=True)
 
     class Meta:
         model = Vente
-        fields = ['id', 'customer', 'status', 'total', 'lines', 'created_at', 'updated_at']
-        read_only_fields = ['status', 'total', 'created_at', 'updated_at']
+        fields = [
+            'id', 'customer', 'status', 'priority', 'currency', 'discount_percent',
+            'subtotal_ht', 'discount_amount', 'tva_amount', 'total',
+            'expected_delivery_date', 'notes', 'lines', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'status', 'subtotal_ht', 'discount_amount', 'tva_amount', 'total',
+            'created_at', 'updated_at',
+        ]
 
     def validate_lines(self, value):
         if not value:
@@ -50,5 +61,10 @@ class VenteSerializer(serializers.ModelSerializer):
                 else:
                     VenteLigne.objects.create(vente=instance, **line_data)
 
+        # `.update()` on existing lines above is a bulk update and doesn't
+        # emit `post_save`, so it wouldn't otherwise trigger
+        # `Vente.recalculate_total` (e.g. editing a line's discount or
+        # `Vente.discount_percent` itself, with no line added/removed).
+        instance.recalculate_total()
         instance.refresh_from_db()
         return instance

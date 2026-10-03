@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -5,7 +7,16 @@ from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Role
-from apps.ventes.factories import CustomerFactory, ProductFactory, VenteFactory, VenteLigneFactory
+from apps.ventes.factories import (
+    BonCommandeFactory,
+    BonCommandeLigneFactory,
+    CustomerFactory,
+    FournisseurFactory,
+    LivraisonFactory,
+    ProductFactory,
+    VenteFactory,
+    VenteLigneFactory,
+)
 from apps.ventes.models import Vente, VenteStatus
 
 pytestmark = pytest.mark.django_db
@@ -32,8 +43,8 @@ def test_create_vente_with_lines_recalculates_total(api_client):
     payload = {
         'customer': customer.id,
         'lines': [
-            {'product': product.id, 'quantity': '2', 'unit_price': '20.00'},
-            {'product': product.id, 'quantity': '1', 'unit_price': '5.00'},
+            {'product': product.id, 'quantity': '2', 'unit_price': '20.00', 'tva_rate': '0'},
+            {'product': product.id, 'quantity': '1', 'unit_price': '5.00', 'tva_rate': '0'},
         ],
     }
 
@@ -47,8 +58,8 @@ def test_create_vente_with_lines_recalculates_total(api_client):
 
 def test_signal_recalculates_total_on_line_delete():
     vente = VenteFactory()
-    line1 = VenteLigneFactory(vente=vente, quantity=2, unit_price=10)
-    VenteLigneFactory(vente=vente, quantity=1, unit_price=5)
+    line1 = VenteLigneFactory(vente=vente, quantity=2, unit_price=10, tva_rate=0)
+    VenteLigneFactory(vente=vente, quantity=1, unit_price=5, tva_rate=0)
     vente.refresh_from_db()
     assert vente.total == 25
 
@@ -122,6 +133,110 @@ def test_annuler_action_success(api_client):
     assert vente.status == VenteStatus.CANCELLED
 
 
+def test_line_and_global_discount_are_applied_to_total():
+    vente = VenteFactory(discount_percent=10)
+    # (2 * 20) * 0.9 [remise ligne] = 36 ; puis * 0.9 [remise globale] = 32.40 (pas de TVA ici)
+    VenteLigneFactory(vente=vente, quantity=2, unit_price=20, discount_percent=10, tva_rate=0)
+    vente.refresh_from_db()
+    assert vente.subtotal_ht == Decimal('36.00')
+    assert vente.discount_amount == Decimal('3.60')
+    assert vente.tva_amount == Decimal('0.00')
+    assert vente.total == Decimal('32.40')
+
+
+def test_tva_is_applied_after_discounts():
+    vente = VenteFactory(discount_percent=10)
+    # HT ligne = 100 ; remise globale 10% -> net HT = 90 ; TVA 20% de 90 = 18 ; total = 108
+    VenteLigneFactory(vente=vente, quantity=1, unit_price=100, discount_percent=0, tva_rate=20)
+    vente.refresh_from_db()
+    assert vente.subtotal_ht == Decimal('100.00')
+    assert vente.tva_amount == Decimal('18.00')
+    assert vente.total == Decimal('108.00')
+
+
+def test_update_vente_discount_without_touching_lines_recalculates_total(api_client):
+    vente = VenteFactory(discount_percent=0)
+    VenteLigneFactory(vente=vente, quantity=1, unit_price=100, tva_rate=0)
+    vente.refresh_from_db()
+    assert vente.total == 100
+
+    response = api_client.patch(
+        f'/api/ventes/{vente.id}/', {'discount_percent': '20'}, format='json'
+    )
+
+    assert response.status_code == 200, response.data
+    vente.refresh_from_db()
+    assert vente.total == 80
+
+
+def test_livraison_list_filtered_by_vente(api_client):
+    vente = VenteFactory()
+    LivraisonFactory(vente=vente)
+    LivraisonFactory()  # attached to a different vente
+
+    response = api_client.get(f'/api/livraisons/?vente={vente.id}')
+
+    assert response.status_code == 200, response.data
+    assert response.data['count'] == 1
+
+
+def test_paiement_create(api_client):
+    vente = VenteFactory()
+
+    response = api_client.post(
+        '/api/paiements/',
+        {'vente': vente.id, 'amount': '50.00', 'method': 'card'},
+        format='json',
+    )
+
+    assert response.status_code == 201, response.data
+    assert vente.paiements.count() == 1
+
+
+def test_fournisseur_create_and_list(api_client):
+    response = api_client.post(
+        '/api/fournisseurs/',
+        {'name': 'Acme Supplies', 'email': 'contact@acme-supplies.test', 'is_active': True},
+        format='json',
+    )
+    assert response.status_code == 201, response.data
+    assert response.data['id'].startswith('FRN')
+
+    response = api_client.get('/api/fournisseurs/')
+    assert response.status_code == 200
+    assert response.data['count'] == 1
+
+
+def test_fournisseur_requires_authentication():
+    client = APIClient()
+    response = client.get('/api/fournisseurs/')
+    assert response.status_code == 401
+
+
+def test_fournisseur_role_without_permission_is_forbidden():
+    role_without_access = Role.objects.create(id='ROL09999', name='no-access')
+    user = get_user_model().objects.create_user(username='bob', password='pass1234')
+    user.roles.add(role_without_access)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get('/api/fournisseurs/')
+
+    assert response.status_code == 403
+
+
+def test_user_role_cannot_delete_fournisseur():
+    fournisseur = FournisseurFactory()
+    user = get_user_model().objects.create_user(username='carla', password='pass1234')
+    user.roles.add(Role.objects.get(name='user'))
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.delete(f'/api/fournisseurs/{fournisseur.id}/')
+
+    assert response.status_code == 403
+
+
 def test_annuler_action_requires_change_permission():
     user_role_holder = get_user_model().objects.create_user(
         username='readonly', password='pass1234'
@@ -134,3 +249,63 @@ def test_annuler_action_requires_change_permission():
     response = client.post(f'/api/ventes/{vente.id}/annuler/')
 
     assert response.status_code == 403
+
+
+def test_create_fournisseur(api_client):
+    payload = {'name': 'Grossiste SARL', 'email': 'contact@grossiste.test', 'is_active': True}
+
+    response = api_client.post('/api/fournisseurs/', payload, format='json')
+
+    assert response.status_code == 201, response.data
+    assert response.data['name'] == 'Grossiste SARL'
+    assert response.data['is_active'] is True
+
+
+def test_list_fournisseurs(api_client):
+    FournisseurFactory.create_batch(3)
+
+    response = api_client.get('/api/fournisseurs/')
+
+    assert response.status_code == 200
+    assert response.data['count'] == 3
+
+
+def test_fournisseur_delete_requires_delete_permission():
+    user_role_holder = get_user_model().objects.create_user(
+        username='fournisseur_user', password='pass1234'
+    )
+    user_role_holder.roles.add(Role.objects.get(name='user'))
+    client = APIClient()
+    client.force_authenticate(user=user_role_holder)
+    fournisseur = FournisseurFactory()
+
+    response = client.delete(f'/api/fournisseurs/{fournisseur.id}/')
+
+    assert response.status_code == 403
+
+
+def test_fournisseur_delete_allowed_for_admin():
+    admin_user = get_user_model().objects.create_user(
+        username='fournisseur_admin', password='pass1234'
+    )
+    admin_user.roles.add(Role.objects.get(name='admin'))
+    client = APIClient()
+    client.force_authenticate(user=admin_user)
+    fournisseur = FournisseurFactory()
+
+    response = client.delete(f'/api/fournisseurs/{fournisseur.id}/')
+
+    assert response.status_code == 204
+
+
+def test_to_vente_defaults_returns_shaped_payload(api_client):
+    bon = BonCommandeFactory(currency='EUR', discount_percent=Decimal('5'))
+    BonCommandeLigneFactory(bon_commande=bon, quantity=Decimal('2'), unit_price=Decimal('15.00'))
+
+    response = api_client.get(f'/api/bons-commande/{bon.id}/to_vente_defaults/')
+
+    assert response.status_code == 200
+    assert response.data['customer'] == bon.customer_id
+    assert response.data['currency'] == 'EUR'
+    assert len(response.data['lines']) == 1
+    assert response.data['lines'][0]['quantity'] == Decimal('2')
