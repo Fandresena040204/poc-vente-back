@@ -10,3 +10,4 @@ venv/
 .ruff_cache/
 staticfiles/
 .idea/
+node_modules/

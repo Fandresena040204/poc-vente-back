@@ -1,5 +1,7 @@
 from rest_framework.permissions import BasePermission
 
+from apps.accounts.models import UserPermissionOverride
+
 ACTION_TO_PERMISSION = {
     'list': 'view',
     'retrieve': 'view',
@@ -23,7 +25,15 @@ class HasRolePermission(BasePermission):
         model = view.serializer_class.Meta.model
         codename = f'{action}_{model._meta.model_name}'
 
+        override = UserPermissionOverride.objects.filter(
+            user=user,
+            permission__codename=codename,
+            permission__app_label=model._meta.app_label,
+        ).first()
+        if override is not None:
+            return override.is_allowed
+
         return user.roles.filter(
             permissions__codename=codename,
-            permissions__content_type__app_label=model._meta.app_label,
+            permissions__app_label=model._meta.app_label,
         ).exists()

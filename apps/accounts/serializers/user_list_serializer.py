@@ -9,5 +9,5 @@ class UserListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'is_active', 'is_staff', 'roles']
+        fields = ['id', 'username', 'email', 'is_active', 'roles']
         read_only_fields = fields

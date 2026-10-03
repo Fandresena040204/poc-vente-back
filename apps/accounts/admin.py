@@ -19,7 +19,7 @@ class UserAdmin(DjangoUserAdmin):
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Informations personnelles', {'fields': ('first_name', 'last_name', 'email')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'roles')}),
+        ('Permissions', {'fields': ('is_active', 'roles')}),
         ('Dates importantes', {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = (
@@ -27,12 +27,12 @@ class UserAdmin(DjangoUserAdmin):
             None,
             {
                 'classes': ('wide',),
-                'fields': ('username', 'email', 'password1', 'password2', 'is_staff'),
+                'fields': ('username', 'email', 'password1', 'password2'),
             },
         ),
     )
-    list_display = ['username', 'email', 'first_name', 'last_name', 'is_staff']
-    list_filter = ['is_staff', 'is_active']
+    list_display = ['username', 'email', 'first_name', 'last_name']
+    list_filter = ['is_active']
     filter_horizontal = ('roles',)
     ordering = ['username']
 

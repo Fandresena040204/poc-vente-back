@@ -2,6 +2,8 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import Permission
+from apps.accounts.permissions import IsAdminRole
 from apps.accounts.serializers import CustomerSerializer
 from apps.ventes.serializers import (
     LivraisonSerializer,
@@ -44,3 +46,18 @@ class MetaView(APIView):
                 'choices': getattr(field, 'choices', None),
             })
         return Response({'resource': resource, 'fields': fields_meta})
+
+
+class PermissionsMetaView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        permissions = Permission.objects.all().order_by('app_label', 'model')
+        grouped = {}
+        for p in permissions:
+            key = (p.app_label, p.model)
+            grouped.setdefault(key, []).append(p.codename)
+        return Response([
+            {'app_label': app, 'model': model, 'codenames': codenames}
+            for (app, model), codenames in grouped.items()
+        ])
