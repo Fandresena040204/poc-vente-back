@@ -23,6 +23,14 @@ class HasRolePermission(BasePermission):
 
         action = ACTION_TO_PERMISSION.get(view.action, self.default_custom_action_permission)
         model = view.serializer_class.Meta.model
+        if not self._has_codename(user, model, action):
+            return False
+        # A write must also be readable: without `view`, a change would still
+        # succeed on an entity the user is not allowed to see.
+        return action == 'view' or self._has_codename(user, model, 'view')
+
+    @staticmethod
+    def _has_codename(user, model, action):
         codename = f'{action}_{model._meta.model_name}'
 
         override = UserPermissionOverride.objects.filter(
