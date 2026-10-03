@@ -341,3 +341,20 @@ def test_set_roles_rejects_unknown_role_and_changes_nothing():
 def test_create_custom_permissions_signal_creates_four_permissions_per_model():
     assert Permission.objects.filter(app_label='accounts', model='customer').count() == 4
     assert Permission.objects.filter(app_label='ventes', model='vente').count() == 4
+
+
+def test_write_is_refused_when_the_entity_cannot_be_read():
+    user = User.objects.create_user(username='blind_editor', password='pass1234')
+    user.roles.add(Role.objects.get(name='editor'))  # editor autorise change_customer
+    UserPermissionOverride.objects.create(
+        user=user, permission=customer_permission('view_customer'), is_allowed=False
+    )
+    customer = Customer.objects.create(name='Acme Corp', city='Paris')
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.patch(f'/api/customers/{customer.id}/', {'city': 'Lyon'}, format='json')
+
+    assert response.status_code == 403
+    customer.refresh_from_db()
+    assert customer.city == 'Paris'
