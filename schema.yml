@@ -130,7 +130,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedBonCommandeList'
+                $ref: '#/components/schemas/PaginatedBonCommandeReadList'
           description: ''
     post:
       operationId: bons_commande_create
@@ -165,7 +165,8 @@ paths:
         name: id
         schema:
           type: string
-        description: Un(une) valeur unique identifiant ce(cette) bon commande.
+        description: Un(une) valeur unique identifiant ce(cette) bon commande list
+          view.
         required: true
       tags:
       - bons-commande
@@ -176,7 +177,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BonCommande'
+                $ref: '#/components/schemas/BonCommandeRead'
           description: ''
     put:
       operationId: bons_commande_update
@@ -2132,6 +2133,89 @@ components:
       - product
       - quantity
       - unit_price
+    BonCommandeLigneRead:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 20
+        product:
+          type: string
+          maxLength: 20
+        product_name:
+          type: string
+          maxLength: 255
+        product_sku:
+          type: string
+          maxLength: 64
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        discount_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        tva_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+      required:
+      - discount_percent
+      - id
+      - product
+      - product_name
+      - product_sku
+      - quantity
+      - tva_rate
+      - unit_price
+    BonCommandeRead:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 20
+        customer:
+          type: string
+          maxLength: 20
+        customer_name:
+          type: string
+          maxLength: 255
+        currency:
+          type: string
+          maxLength: 3
+        discount_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        expected_delivery_date:
+          type: string
+          format: date
+          nullable: true
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/BonCommandeLigneRead'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - currency
+      - customer
+      - customer_name
+      - discount_percent
+      - id
+      - lines
+      - updated_at
     CurrencyEnum:
       enum:
       - MGA
@@ -2270,7 +2354,7 @@ components:
         * `cash` - Espèces
         * `card` - Carte
         * `transfer` - Virement
-    PaginatedBonCommandeList:
+    PaginatedBonCommandeReadList:
       type: object
       required:
       - count
@@ -2292,7 +2376,7 @@ components:
         results:
           type: array
           items:
-            $ref: '#/components/schemas/BonCommande'
+            $ref: '#/components/schemas/BonCommandeRead'
     PaginatedCustomerList:
       type: object
       required:

@@ -309,3 +309,19 @@ def test_to_vente_defaults_returns_shaped_payload(api_client):
     assert response.data['currency'] == 'EUR'
     assert len(response.data['lines']) == 1
     assert response.data['lines'][0]['quantity'] == Decimal('2')
+
+
+def test_bon_commande_list_and_retrieve_expose_resolved_labels(api_client):
+    bon = BonCommandeFactory()
+    line = BonCommandeLigneFactory(bon_commande=bon)
+
+    listed = api_client.get('/api/bons-commande/')
+    retrieved = api_client.get(f'/api/bons-commande/{bon.id}/')
+
+    assert listed.status_code == 200
+    row = next(r for r in listed.data['results'] if r['id'] == bon.id)
+    assert row['customer_name'] == bon.customer.name
+    assert row['lines'][0]['product_name'] == line.product.name
+    assert row['lines'][0]['product_sku'] == line.product.sku
+    assert retrieved.status_code == 200
+    assert retrieved.data['customer_name'] == bon.customer.name

@@ -3,8 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.permissions import HasRolePermission
-from apps.ventes.models import BonCommande
-from apps.ventes.serializers import BonCommandeSerializer
+from apps.ventes.models import BonCommande, BonCommandeListView
+from apps.ventes.serializers import BonCommandeReadSerializer, BonCommandeSerializer
 
 
 class BonCommandeViewSet(viewsets.ModelViewSet):
@@ -12,7 +12,17 @@ class BonCommandeViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     ordering_fields = ['created_at']
 
+    def get_serializer_class(self):
+        if self.action in ('list', 'retrieve'):
+            return BonCommandeReadSerializer
+        return BonCommandeSerializer
+
     def get_queryset(self):
+        # list/retrieve read the bon_commande_list_view DB view (customer_name
+        # and product_name resolved in SQL); writes and to_vente_defaults use
+        # the real model.
+        if self.action in ('list', 'retrieve'):
+            return BonCommandeListView.objects.prefetch_related('lines')
         return BonCommande.objects.select_related('customer').prefetch_related('lines__product')
 
     @action(detail=True, methods=['get'])
