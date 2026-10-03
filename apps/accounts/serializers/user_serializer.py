@@ -28,6 +28,7 @@ class UserSerializer(serializers.ModelSerializer):
                 codenames.discard(override.permission.codename)
         return sorted(codenames)
 
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_permission_overrides(self, obj):
         return [
             {'permission': o.permission.codename, 'is_allowed': o.is_allowed}

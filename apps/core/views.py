@@ -1,4 +1,5 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -51,6 +52,15 @@ class MetaView(APIView):
 class PermissionsMetaView(APIView):
     permission_classes = [IsAdminRole]
 
+    @extend_schema(responses=inline_serializer(
+        name='PermissionGroup',
+        fields={
+            'app_label': serializers.CharField(),
+            'model': serializers.CharField(),
+            'codenames': serializers.ListField(child=serializers.CharField()),
+        },
+        many=True,
+    ))
     def get(self, request):
         permissions = Permission.objects.all().order_by('app_label', 'model')
         grouped = {}

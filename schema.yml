@@ -981,6 +981,22 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/permissions/:
+    get:
+      operationId: permissions_list
+      tags:
+      - permissions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PermissionGroup'
+          description: ''
   /api/product-categories/:
     get:
       operationId: product_categories_list
@@ -1633,7 +1649,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserList'
+                $ref: '#/components/schemas/User'
           description: ''
   /api/users/{id}/assign_role/:
     post:
@@ -1670,6 +1686,70 @@ paths:
   /api/users/{id}/remove_role/:
     post:
       operationId: users_remove_role_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) user.
+        required: true
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserList'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserList'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserList'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+          description: ''
+  /api/users/{id}/set_permission_overrides/:
+    post:
+      operationId: users_set_permission_overrides_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) user.
+        required: true
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserList'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserList'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserList'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+          description: ''
+  /api/users/{id}/set_roles/:
+    post:
+      operationId: users_set_roles_create
       parameters:
       - in: path
         name: id
@@ -2670,7 +2750,6 @@ components:
           type: array
           items:
             type: string
-            title: Nom de code
     PatchedUser:
       type: object
       properties:
@@ -2702,6 +2781,12 @@ components:
           type: array
           items:
             type: string
+          readOnly: true
+        permission_overrides:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
           readOnly: true
     PatchedVente:
       type: object
@@ -2765,6 +2850,21 @@ components:
           type: string
           format: date-time
           readOnly: true
+    PermissionGroup:
+      type: object
+      properties:
+        app_label:
+          type: string
+        model:
+          type: string
+        codenames:
+          type: array
+          items:
+            type: string
+      required:
+      - app_label
+      - codenames
+      - model
     PriorityEnum:
       enum:
       - low
@@ -2923,7 +3023,6 @@ components:
           type: array
           items:
             type: string
-            title: Nom de code
       required:
       - id
       - name
@@ -2990,8 +3089,15 @@ components:
           items:
             type: string
           readOnly: true
+        permission_overrides:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
       required:
       - id
+      - permission_overrides
       - permissions
       - roles
       - username
@@ -3011,9 +3117,6 @@ components:
         is_active:
           type: boolean
           readOnly: true
-        is_staff:
-          type: boolean
-          readOnly: true
         roles:
           type: array
           items:
@@ -3023,7 +3126,6 @@ components:
       - email
       - id
       - is_active
-      - is_staff
       - roles
       - username
     Vente:
