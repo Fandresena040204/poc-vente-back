@@ -137,6 +137,22 @@ def test_only_admin_can_manage_roles():
     assert response.status_code == 403
 
 
+def test_dg_can_list_roles_but_not_manage_the_catalog():
+    # Nécessaire pour attribuer un rôle existant (la liste alimente les
+    # cases à cocher côté front) — pas le même droit que gérer le
+    # catalogue des rôles lui-même.
+    dg_user = User.objects.create_user(username='dg_lists_roles', password='pass1234')
+    dg_user.roles.add(Role.objects.get(name='dg'))
+    client = APIClient()
+    client.force_authenticate(user=dg_user)
+
+    list_response = client.get('/api/roles/')
+    create_response = client.post('/api/roles/', {'name': 'manager'}, format='json')
+
+    assert list_response.status_code == 200
+    assert create_response.status_code == 403
+
+
 def test_admin_can_create_role_and_assign_it_to_user():
     admin = make_admin(User.objects.create_user(username='admin', password='pass1234'))
     target_user = User.objects.create_user(username='employee', password='pass1234')
