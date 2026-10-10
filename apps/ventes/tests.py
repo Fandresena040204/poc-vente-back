@@ -36,6 +36,14 @@ def api_client(user):
     return client
 
 
+def client_with_role(role_name, username):
+    user = get_user_model().objects.create_user(username=username, password='pass1234')
+    user.roles.add(Role.objects.get(name=role_name))
+    client = APIClient()
+    client.force_authenticate(user=user)
+    return client, user
+
+
 def test_create_vente_with_lines_recalculates_total(api_client):
     customer = CustomerFactory()
     product = ProductFactory(default_price=20)
@@ -68,22 +76,105 @@ def test_signal_recalculates_total_on_line_delete():
     assert vente.total == 5
 
 
-def test_valider_action_requires_draft_status(api_client):
-    vente = VenteFactory(status=VenteStatus.VALIDATED)
+def test_transition_unknown_step_returns_404(api_client):
+    vente = VenteFactory()
 
-    response = api_client.post(f'/api/ventes/{vente.id}/valider/')
+    response = api_client.post(f'/api/ventes/{vente.id}/transition/not-a-step/')
 
+    assert response.status_code == 404
+
+
+def test_valider_achat_requires_permission():
+    client, _ = client_with_role('user', 'no_achat_perm')
+    vente = VenteFactory(status=VenteStatus.CREE)
+
+    response = client.post(f'/api/ventes/{vente.id}/transition/valider_achat/')
+
+    assert response.status_code == 403
+    vente.refresh_from_db()
+    assert vente.status == VenteStatus.CREE
+
+
+def test_valider_achat_success_records_decision():
+    client, achat_user = client_with_role('achat', 'achat_user')
+    vente = VenteFactory(status=VenteStatus.CREE)
+
+    response = client.post(f'/api/ventes/{vente.id}/transition/valider_achat/')
+
+    assert response.status_code == 200, response.data
+    vente.refresh_from_db()
+    assert vente.status == VenteStatus.VALIDE_ACHAT
+    assert vente.achat_par_id == achat_user.id
+    assert vente.achat_le is not None
+
+
+def test_valider_caisse_can_skip_achat():
+    client, _ = client_with_role('caisse', 'caisse_user')
+    vente = VenteFactory(status=VenteStatus.CREE)
+
+    response = client.post(f'/api/ventes/{vente.id}/transition/valider_caisse/')
+
+    assert response.status_code == 200, response.data
+    vente.refresh_from_db()
+    assert vente.status == VenteStatus.VALIDE_CAISSE
+    assert vente.achat_par_id is None  # sautée, pas "validée par personne"
+
+
+def test_achat_cannot_validate_after_caisse_has():
+    client, _ = client_with_role('achat', 'achat_after_caisse')
+    vente = VenteFactory(status=VenteStatus.VALIDE_CAISSE)
+
+    response = client.post(f'/api/ventes/{vente.id}/transition/valider_achat/')
+
+    assert response.status_code == 400
+    vente.refresh_from_db()
+    assert vente.status == VenteStatus.VALIDE_CAISSE
+
+
+def test_rejeter_achat_is_terminal():
+    client, achat_user = client_with_role('achat', 'achat_rejects')
+    vente = VenteFactory(status=VenteStatus.CREE)
+
+    response = client.post(f'/api/ventes/{vente.id}/transition/rejeter_achat/')
+    assert response.status_code == 200, response.data
+    vente.refresh_from_db()
+    assert vente.status == VenteStatus.REJETEE_ACHAT
+    assert vente.achat_par_id == achat_user.id
+
+    caisse_client, _ = client_with_role('caisse', 'caisse_after_reject')
+    response = caisse_client.post(f'/api/ventes/{vente.id}/transition/valider_caisse/')
     assert response.status_code == 400
 
 
-def test_valider_action_success(api_client):
-    vente = VenteFactory(status=VenteStatus.DRAFT)
+def test_valider_dg_creates_livraison_and_records_decision():
+    client, dg_user = client_with_role('dg', 'dg_user')
+    vente = VenteFactory(status=VenteStatus.VALIDE_CAISSE)
 
-    response = api_client.post(f'/api/ventes/{vente.id}/valider/')
+    response = client.post(f'/api/ventes/{vente.id}/transition/valider_dg/')
 
-    assert response.status_code == 200
+    assert response.status_code == 200, response.data
     vente.refresh_from_db()
-    assert vente.status == VenteStatus.VALIDATED
+    assert vente.status == VenteStatus.VALIDE_DG
+    assert vente.dg_par_id == dg_user.id
+    assert vente.livraisons.count() == 1
+
+
+def test_allowed_steps_reflects_status_and_permissions():
+    vente = VenteFactory(status=VenteStatus.CREE)
+    achat_client, _ = client_with_role('achat', 'achat_allowed')
+    dg_client, _ = client_with_role('dg', 'dg_allowed')
+
+    achat_response = achat_client.get(f'/api/ventes/{vente.id}/allowed-steps/')
+    dg_response = dg_client.get(f'/api/ventes/{vente.id}/allowed-steps/')
+
+    assert achat_response.status_code == 200
+    assert set(achat_response.data['allowed_steps']) == {
+        'valider_achat', 'rejeter_achat', 'annuler'
+    }
+    assert dg_response.status_code == 200
+    # Le DG peut sauter achat ET caisse : `valider_dg`/`rejeter_dg` acceptent
+    # déjà CREE comme source (voir VENTE_WORKFLOW).
+    assert set(dg_response.data['allowed_steps']) == {'valider_dg', 'rejeter_dg', 'annuler'}
 
 
 def test_vente_list_has_no_n_plus_one_queries(api_client):
@@ -115,22 +206,24 @@ def test_unauthenticated_request_is_rejected():
     assert response.status_code == 401
 
 
-def test_annuler_action_requires_validated_status(api_client):
-    vente = VenteFactory(status=VenteStatus.DRAFT)
+def test_annuler_requires_draft_status():
+    client, _ = client_with_role('admin', 'admin_cancels')
+    vente = VenteFactory(status=VenteStatus.VALIDE_DG)
 
-    response = api_client.post(f'/api/ventes/{vente.id}/annuler/')
+    response = client.post(f'/api/ventes/{vente.id}/transition/annuler/')
 
     assert response.status_code == 400
 
 
-def test_annuler_action_success(api_client):
-    vente = VenteFactory(status=VenteStatus.VALIDATED)
+def test_annuler_success():
+    client, _ = client_with_role('admin', 'admin_cancels_draft')
+    vente = VenteFactory(status=VenteStatus.CREE)
 
-    response = api_client.post(f'/api/ventes/{vente.id}/annuler/')
+    response = client.post(f'/api/ventes/{vente.id}/transition/annuler/')
 
     assert response.status_code == 200
     vente.refresh_from_db()
-    assert vente.status == VenteStatus.CANCELLED
+    assert vente.status == VenteStatus.ANNULEE
 
 
 def test_line_and_global_discount_are_applied_to_total():
@@ -237,16 +330,11 @@ def test_user_role_cannot_delete_fournisseur():
     assert response.status_code == 403
 
 
-def test_annuler_action_requires_change_permission():
-    user_role_holder = get_user_model().objects.create_user(
-        username='readonly', password='pass1234'
-    )
-    user_role_holder.roles.add(Role.objects.get(name='user'))
-    client = APIClient()
-    client.force_authenticate(user=user_role_holder)
-    vente = VenteFactory(status=VenteStatus.VALIDATED)
+def test_annuler_requires_cancel_permission():
+    client, _ = client_with_role('user', 'readonly')  # 'user' n'a pas cancel_vente
+    vente = VenteFactory(status=VenteStatus.CREE)
 
-    response = client.post(f'/api/ventes/{vente.id}/annuler/')
+    response = client.post(f'/api/ventes/{vente.id}/transition/annuler/')
 
     assert response.status_code == 403
 

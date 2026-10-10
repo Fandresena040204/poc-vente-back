@@ -7,17 +7,21 @@ class VenteListView(models.Model):
     resolved in SQL, once, instead of the API computing it per-request (or
     the frontend fetching every customer to resolve it itself). Read-only:
     `VenteViewSet` uses this for `list`/`retrieve` and the real `Vente`
-    model for `create`/`update`/custom actions (`valider`/`annuler`).
+    model for `create`/`update`/workflow transitions.
 
-    `status` is a plain `CharField` here (not `django_fsm.FSMField` like on
-    `Vente`) — this model is never saved, so it has no need for (and
-    shouldn't carry) the FSM transition machinery.
+    `status` is a plain integer (see `apps.ventes.workflow.VenteStatus`) —
+    matches the real `vente.status` column 1:1, this view just selects it.
+
+    `*_par`/`*_le` mirror `Vente`'s own workflow decision columns (who
+    validated/rejected each level, and when — NULL means not reached yet,
+    or skipped by a higher level). This model is never saved, so it has no
+    need for (and shouldn't carry) any transition machinery.
     """
 
     id = models.CharField(max_length=20, primary_key=True)
     customer = models.CharField(max_length=20)
     customer_name = models.CharField(max_length=255)
-    status = models.CharField(max_length=50)
+    status = models.IntegerField()
     priority = models.CharField(max_length=10)
     currency = models.CharField(max_length=3)
     discount_percent = models.DecimalField(max_digits=5, decimal_places=2)
@@ -28,6 +32,12 @@ class VenteListView(models.Model):
     expected_delivery_date = models.DateField(null=True)
     notes = models.TextField()
     created_by = models.CharField(max_length=20, null=True)
+    achat_par = models.CharField(max_length=20, null=True)
+    achat_le = models.DateTimeField(null=True)
+    caisse_par = models.CharField(max_length=20, null=True)
+    caisse_le = models.DateTimeField(null=True)
+    dg_par = models.CharField(max_length=20, null=True)
+    dg_le = models.DateTimeField(null=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
 

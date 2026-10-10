@@ -23,16 +23,16 @@ class HasRolePermission(BasePermission):
 
         action = ACTION_TO_PERMISSION.get(view.action, self.default_custom_action_permission)
         model = view.serializer_class.Meta.model
-        if not self._has_codename(user, model, action):
+        if not self._has_codename(user, model, f'{action}_{model._meta.model_name}'):
             return False
         # A write must also be readable: without `view`, a change would still
         # succeed on an entity the user is not allowed to see.
-        return action == 'view' or self._has_codename(user, model, 'view')
+        return action == 'view' or self._has_codename(user, model, f'view_{model._meta.model_name}')
 
     @staticmethod
-    def _has_codename(user, model, action):
-        codename = f'{action}_{model._meta.model_name}'
-
+    def _has_codename(user, model, codename):
+        """`codename` is the full permission codename (ex. 'change_vente',
+        'validate_achat_vente') — never just the short action verb."""
         override = UserPermissionOverride.objects.filter(
             user=user,
             permission__codename=codename,
@@ -45,3 +45,25 @@ class HasRolePermission(BasePermission):
             permissions__codename=codename,
             permissions__app_label=model._meta.app_label,
         ).exists()
+
+    @staticmethod
+    def effective_codenames(user, model):
+        """Tous les codenames effectivement accordés à `user` pour `model`
+        (rôles, avec les exceptions appliquées) — deux requêtes au total,
+        quel que soit le nombre de codenames à vérifier ensuite. À utiliser
+        quand on doit vérifier plusieurs permissions pour le même
+        utilisateur/modèle (ex. une ligne de liste) : appeler
+        `_has_codename` en boucle ferait une requête par codename et par
+        ligne (N+1)."""
+        overrides = dict(
+            UserPermissionOverride.objects.filter(
+                user=user, permission__app_label=model._meta.app_label
+            ).values_list('permission__codename', 'is_allowed')
+        )
+        role_codenames = set(
+            user.roles.filter(permissions__app_label=model._meta.app_label).values_list(
+                'permissions__codename', flat=True
+            )
+        )
+        candidates = role_codenames | overrides.keys()
+        return {c for c in candidates if overrides.get(c, c in role_codenames)}

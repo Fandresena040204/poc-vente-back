@@ -27,3 +27,15 @@ def create_custom_permissions(sender, app_config, **kwargs):
                 codename=codename,
                 defaults={'name': f'Can {action} {model._meta.verbose_name}'},
             )
+        # Permissions personnalisées déclarées sur le modèle (`Meta.permissions`),
+        # ex. les étapes d'un workflow (voir apps/ventes/workflow.py,
+        # Vente.Meta.permissions). `get_or_create` : sans effet si déjà créées,
+        # donc on peut relancer `migrate` sur une base déjà en service pour les
+        # faire apparaître, sans migration de données.
+        for codename, name in model._meta.permissions:
+            Permission.objects.get_or_create(
+                app_label=app_config.label,
+                model=model._meta.model_name,
+                codename=codename,
+                defaults={'name': name},
+            )

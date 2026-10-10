@@ -339,8 +339,25 @@ def test_set_roles_rejects_unknown_role_and_changes_nothing():
 
 
 def test_create_custom_permissions_signal_creates_four_permissions_per_model():
+    # `customer` has no `Meta.permissions` : juste les 4 par défaut.
     assert Permission.objects.filter(app_label='accounts', model='customer').count() == 4
-    assert Permission.objects.filter(app_label='ventes', model='vente').count() == 4
+
+
+def test_create_custom_permissions_signal_also_creates_meta_permissions():
+    # `vente` a 7 permissions personnalisées (VENTE_WORKFLOW) en plus des 4
+    # par défaut (voir Vente.Meta.permissions, apps/ventes/models/vente.py).
+    codenames = set(
+        Permission.objects.filter(app_label='ventes', model='vente').values_list(
+            'codename', flat=True
+        )
+    )
+    assert codenames == {
+        'add_vente', 'change_vente', 'delete_vente', 'view_vente',
+        'validate_achat_vente', 'reject_achat_vente',
+        'validate_caisse_vente', 'reject_caisse_vente',
+        'validate_dg_vente', 'reject_dg_vente',
+        'cancel_vente',
+    }
 
 
 def test_write_is_refused_when_the_entity_cannot_be_read():
