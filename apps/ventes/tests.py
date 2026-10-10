@@ -171,6 +171,18 @@ def test_dg_role_inherits_achat_and_caisse_permissions():
     assert vente.status == VenteStatus.VALIDE_CAISSE
 
 
+def test_workflow_roles_can_view_the_vente_they_act_on():
+    # Trouvé en testant dans le navigateur : sans `view_vente`, achat/
+    # caisse/dg ont les permissions de workflow mais ne peuvent même pas
+    # charger la fiche pour cliquer sur un bouton (list/retrieve exigent
+    # `view`, voir HasRolePermission.ACTION_TO_PERMISSION).
+    vente = VenteFactory()
+    for role_name in ['achat', 'caisse', 'dg']:
+        client, _ = client_with_role(role_name, f'{role_name}_can_view')
+        response = client.get(f'/api/ventes/{vente.id}/')
+        assert response.status_code == 200, (role_name, response.data)
+
+
 def test_allowed_steps_reflects_status_and_permissions():
     vente = VenteFactory(status=VenteStatus.CREE)
     achat_client, _ = client_with_role('achat', 'achat_allowed')
