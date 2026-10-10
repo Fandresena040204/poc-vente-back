@@ -1,20 +1,31 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.filters import UserFilterSet
 from apps.accounts.models import Permission, Role, UserPermissionOverride
-from apps.accounts.permissions import IsAdminRole
-from apps.accounts.serializers import UserListSerializer, UserSerializer
+from apps.accounts.permissions import HasRolePermission
+from apps.accounts.serializers import UserCreateSerializer, UserListSerializer, UserSerializer
 
 User = get_user_model()
 
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
+class UserViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
+    # `CreateModelMixin` + `ReadOnlyModelViewSet`, pas `ModelViewSet` :
+    # list/retrieve/create seulement — modifier un compte passe par les
+    # actions dédiées ci-dessous (set_roles, set_permission_overrides), pas
+    # par un PATCH générique sur tous les champs.
+    #
+    # `HasRolePermission`, pas `IsAdminRole` codé en dur : qui peut créer un
+    # compte (`add_user`) ou changer les rôles d'un utilisateur
+    # (`change_user`, la permission par défaut des actions personnalisées)
+    # est une question de permission, accordée par rôle — voir la migration
+    # de seed. Admin et dg l'ont ; un autre rôle peut le recevoir sans
+    # toucher au code.
     serializer_class = UserListSerializer
-    permission_classes = [IsAdminRole]
+    permission_classes = [HasRolePermission]
     filterset_class = UserFilterSet
     # No `search_fields`: `username` is its own filter (UserFilterSet)
     # rather than the global `search=`.
@@ -34,7 +45,17 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         # inclus) ; `list` garde UserListSerializer, inchangé.
         if self.action == 'retrieve':
             return UserSerializer
+        if self.action == 'create':
+            return UserCreateSerializer
         return super().get_serializer_class()
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        # La création renvoie la forme liste (rôles inclus, pas de mot de
+        # passe) — cohérent avec ce que la page Users affiche déjà.
+        user = User.objects.prefetch_related('roles').get(pk=response.data['id'])
+        response.data = UserListSerializer(user).data
+        return response
 
     def _set_role(self, request, pk, action_name):
         user = self.get_object()

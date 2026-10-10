@@ -1724,6 +1724,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedUserListList'
           description: ''
+    post:
+      operationId: users_create
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreate'
+          description: ''
   /api/users/{id}/:
     get:
       operationId: users_retrieve
@@ -3390,6 +3415,41 @@ components:
       - permission_overrides
       - permissions
       - roles
+      - username
+    UserCreate:
+      type: object
+      description: |-
+        `UserViewSet.create` only — distinct from `RegisterSerializer`
+        (public self sign-up, apps/accounts/views/register_view.py) in that it
+        lets the creator assign roles right away, and is reached through
+        `HasRolePermission` (`add_user` + `view_user`), not `AllowAny`.
+      properties:
+        id:
+          type: string
+          readOnly: true
+        username:
+          type: string
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        password:
+          type: string
+          writeOnly: true
+        roles:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+      required:
+      - id
+      - password
       - username
     UserList:
       type: object

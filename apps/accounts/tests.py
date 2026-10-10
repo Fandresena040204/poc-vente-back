@@ -338,6 +338,87 @@ def test_set_roles_rejects_unknown_role_and_changes_nothing():
     assert list(target.roles.values_list('name', flat=True)) == ['user']
 
 
+def test_admin_can_create_a_user_with_roles():
+    admin = make_admin(User.objects.create_user(username='creator_admin', password='pass1234'))
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        '/api/users/',
+        {
+            'username': 'new_hire', 'email': 'new_hire@test.com',
+            'password': 'Str0ngPass!', 'roles': ['caisse'],
+        },
+        format='json',
+    )
+
+    assert response.status_code == 201, response.data
+    assert 'password' not in response.data
+    created = User.objects.get(username='new_hire')
+    assert list(created.roles.values_list('name', flat=True)) == ['caisse']
+    assert created.check_password('Str0ngPass!')
+
+
+def test_dg_can_also_create_a_user():
+    dg_user = User.objects.create_user(username='dg_creator', password='pass1234')
+    dg_user.roles.add(Role.objects.get(name='dg'))
+    client = APIClient()
+    client.force_authenticate(user=dg_user)
+
+    response = client.post(
+        '/api/users/',
+        {'username': 'dg_hire', 'email': 'dg_hire@test.com', 'password': 'Str0ngPass!'},
+        format='json',
+    )
+
+    assert response.status_code == 201, response.data
+
+
+def test_create_user_rejects_weak_password():
+    admin = make_admin(User.objects.create_user(username='weak_pw_admin', password='pass1234'))
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.post(
+        '/api/users/',
+        {'username': 'weak_hire', 'email': 'a@test.com', 'password': '123'},
+        format='json',
+    )
+
+    assert response.status_code == 400
+    assert not User.objects.filter(username='weak_hire').exists()
+
+
+def test_role_without_user_management_permission_cannot_create_a_user():
+    editor = User.objects.create_user(username='editor_cant_create', password='pass1234')
+    editor.roles.add(Role.objects.get(name='editor'))
+    client = APIClient()
+    client.force_authenticate(user=editor)
+
+    response = client.post(
+        '/api/users/',
+        {'username': 'blocked_hire', 'email': 'a@test.com', 'password': 'Str0ngPass!'},
+        format='json',
+    )
+
+    assert response.status_code == 403
+
+
+def test_dg_can_assign_roles():
+    dg_user = User.objects.create_user(username='dg_assigner', password='pass1234')
+    dg_user.roles.add(Role.objects.get(name='dg'))
+    target = User.objects.create_user(username='role_assign_target', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=dg_user)
+
+    response = client.post(
+        f'/api/users/{target.id}/set_roles/', {'roles': ['caisse']}, format='json'
+    )
+
+    assert response.status_code == 200, response.data
+    assert list(target.roles.values_list('name', flat=True)) == ['caisse']
+
+
 def test_create_custom_permissions_signal_creates_four_permissions_per_model():
     # `customer` has no `Meta.permissions` : juste les 4 par défaut.
     assert Permission.objects.filter(app_label='accounts', model='customer').count() == 4
