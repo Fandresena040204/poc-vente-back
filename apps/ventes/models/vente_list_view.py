@@ -7,17 +7,20 @@ class VenteListView(models.Model):
     resolved in SQL, once, instead of the API computing it per-request (or
     the frontend fetching every customer to resolve it itself). Read-only:
     `VenteViewSet` uses this for `list`/`retrieve` and the real `Vente`
-    model for `create`/`update`/custom actions (`valider`/`annuler`).
+    model for `create`/`update`/workflow transitions.
 
-    `status` is a plain `CharField` here (not `django_fsm.FSMField` like on
-    `Vente`) — this model is never saved, so it has no need for (and
-    shouldn't carry) the FSM transition machinery.
+    `status` is a plain integer (see `apps.ventes.workflow.VenteStatus`) —
+    matches the real `vente.status` column 1:1, this view just selects it.
+    "Who validated/rejected which level, and when" isn't a column anywhere
+    — it's in the general audit log (apps/core/audit.py) as a diff on
+    `status`, not duplicated here. This model is never saved, so it has no
+    need for (and shouldn't carry) any transition machinery.
     """
 
     id = models.CharField(max_length=20, primary_key=True)
     customer = models.CharField(max_length=20)
     customer_name = models.CharField(max_length=255)
-    status = models.CharField(max_length=50)
+    status = models.IntegerField()
     priority = models.CharField(max_length=10)
     currency = models.CharField(max_length=3)
     discount_percent = models.DecimalField(max_digits=5, decimal_places=2)

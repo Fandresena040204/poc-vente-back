@@ -4,6 +4,98 @@ info:
   version: 1.0.0
   description: Ventes/accounts API — schema feeds pagekit-showcase TS type generation.
 paths:
+  /api/audit-logs/:
+    get:
+      operationId: audit_logs_list
+      description: |-
+        Lecture seule (`apps.core.models.AuditLog` n'a pas d'API d'écriture)
+        — `view_auditlog`, comme n'importe quel autre modèle (voir
+        `HasRolePermission`).
+      parameters:
+      - in: query
+        name: action
+        schema:
+          type: string
+          enum:
+          - create
+          - delete
+          - login
+          - update
+          - workflow
+        description: |-
+          * `login` - Connexion
+          * `create` - Création
+          * `update` - Modification
+          * `delete` - Suppression
+          * `workflow` - Action de workflow
+      - in: query
+        name: actor
+        schema:
+          type: string
+      - in: query
+        name: entity_type
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Quel champ utiliser pour classer les résultats.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: Un numéro de page de l'ensemble des résultats.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Nombre de résultats à retourner par page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: Un terme de recherche.
+        schema:
+          type: string
+      tags:
+      - audit-logs
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAuditLogList'
+          description: ''
+  /api/audit-logs/{id}/:
+    get:
+      operationId: audit_logs_retrieve
+      description: |-
+        Lecture seule (`apps.core.models.AuditLog` n'a pas d'API d'écriture)
+        — `view_auditlog`, comme n'importe quel autre modèle (voir
+        `HasRolePermission`).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un(une) valeur entière unique identifiant ce(cette) audit log.
+        required: true
+      tags:
+      - audit-logs
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+          description: ''
   /api/auth/me/:
     get:
       operationId: auth_me_retrieve
@@ -1529,8 +1621,9 @@ paths:
     post:
       operationId: token_create
       description: |-
-        Takes a set of user credentials and returns an access and refresh JSON web
-        token pair to prove the authentication of those credentials.
+        Même comportement que `TokenObtainPairView`, en plus d'une entrée
+        `AuditLog` sur une connexion réussie — `login_failed` n'est volontairement
+        pas journalisé (décision prise avec l'équipe).
       tags:
       - token
       requestBody:
@@ -1783,6 +1876,11 @@ paths:
   /api/ventes/:
     get:
       operationId: ventes_list
+      description: |-
+        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
+        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
+        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
+        explicitement.
       parameters:
       - in: query
         name: currency
@@ -1879,6 +1977,11 @@ paths:
           description: ''
     post:
       operationId: ventes_create
+      description: |-
+        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
+        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
+        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
+        explicitement.
       tags:
       - ventes
       requestBody:
@@ -1905,6 +2008,11 @@ paths:
   /api/ventes/{id}/:
     get:
       operationId: ventes_retrieve
+      description: |-
+        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
+        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
+        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
+        explicitement.
       parameters:
       - in: path
         name: id
@@ -1925,6 +2033,11 @@ paths:
           description: ''
     put:
       operationId: ventes_update
+      description: |-
+        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
+        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
+        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
+        explicitement.
       parameters:
       - in: path
         name: id
@@ -1957,6 +2070,11 @@ paths:
           description: ''
     patch:
       operationId: ventes_partial_update
+      description: |-
+        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
+        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
+        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
+        explicitement.
       parameters:
       - in: path
         name: id
@@ -1988,6 +2106,11 @@ paths:
           description: ''
     delete:
       operationId: ventes_destroy
+      description: |-
+        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
+        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
+        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
+        explicitement.
       parameters:
       - in: path
         name: id
@@ -2002,9 +2125,14 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/ventes/{id}/annuler/:
-    post:
-      operationId: ventes_annuler_create
+  /api/ventes/{id}/allowed-steps/:
+    get:
+      operationId: ventes_allowed_steps_retrieve
+      description: |-
+        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
+        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
+        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
+        explicitement.
       parameters:
       - in: path
         name: id
@@ -2014,18 +2142,6 @@ paths:
         required: true
       tags:
       - ventes
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Vente'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Vente'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Vente'
-        required: true
       security:
       - jwtAuth: []
       responses:
@@ -2035,15 +2151,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Vente'
           description: ''
-  /api/ventes/{id}/valider/:
+  /api/ventes/{id}/transition/{step}/:
     post:
-      operationId: ventes_valider_create
+      operationId: ventes_transition_create
+      description: |-
+        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
+        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
+        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
+        explicitement.
       parameters:
       - in: path
         name: id
         schema:
           type: string
         description: Un(une) valeur unique identifiant ce(cette) vente.
+        required: true
+      - in: path
+        name: step
+        schema:
+          type: string
+          pattern: ^[\w-]+$
         required: true
       tags:
       - ventes
@@ -2070,6 +2197,62 @@ paths:
           description: ''
 components:
   schemas:
+    ActionEnum:
+      enum:
+      - login
+      - create
+      - update
+      - delete
+      - workflow
+      type: string
+      description: |-
+        * `login` - Connexion
+        * `create` - Création
+        * `update` - Modification
+        * `delete` - Suppression
+        * `workflow` - Action de workflow
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        occurred_at:
+          type: string
+          format: date-time
+          readOnly: true
+        actor:
+          type: string
+          nullable: true
+        actor_username:
+          type: string
+          maxLength: 150
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+        action_name:
+          type: string
+          maxLength: 100
+        entity_type:
+          type: string
+          maxLength: 100
+        entity_id:
+          type: string
+          maxLength: 50
+        changes: {}
+        result:
+          type: string
+          maxLength: 10
+        method:
+          type: string
+          maxLength: 10
+        path:
+          type: string
+          maxLength: 255
+      required:
+      - action
+      - entity_type
+      - id
+      - occurred_at
     BonCommande:
       type: object
       properties:
@@ -2354,6 +2537,29 @@ components:
         * `cash` - Espèces
         * `card` - Carte
         * `transfer` - Virement
+    PaginatedAuditLogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
     PaginatedBonCommandeReadList:
       type: object
       required:
@@ -3365,8 +3571,8 @@ components:
       description: |-
         Backed by `VenteListView` (DB view) — used for `list`/`retrieve` only
         (`VenteViewSet.get_serializer_class`). `customer_name` comes from the
-        view's join; `create`/`update`/`valider`/`annuler` go through the
-        writable `Vente` model + `VenteSerializer` instead.
+        view's join; `create`/`update`/workflow transitions go through the
+        writable `Vente` model instead.
       properties:
         id:
           type: string
@@ -3378,8 +3584,9 @@ components:
           type: string
           maxLength: 255
         status:
-          type: string
-          maxLength: 50
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
         priority:
           type: string
           maxLength: 10
@@ -3417,6 +3624,11 @@ components:
           items:
             $ref: '#/components/schemas/VenteLigneRead'
           readOnly: true
+        allowed_steps:
+          type: array
+          items:
+            type: string
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -3424,6 +3636,7 @@ components:
           type: string
           format: date-time
       required:
+      - allowed_steps
       - created_at
       - currency
       - customer
@@ -3441,14 +3654,24 @@ components:
       - updated_at
     VenteStatusEnum:
       enum:
-      - draft
-      - validated
-      - cancelled
-      type: string
+      - 1
+      - 3
+      - 6
+      - 9
+      - -1
+      - -3
+      - -6
+      - -9
+      type: integer
       description: |-
-        * `draft` - Brouillon
-        * `validated` - Validée
-        * `cancelled` - Annulée
+        * `1` - Brouillon
+        * `3` - Validée (achat)
+        * `6` - Validée (caisse)
+        * `9` - Validée (DG)
+        * `-1` - Annulée
+        * `-3` - Rejetée (achat)
+        * `-6` - Rejetée (caisse)
+        * `-9` - Rejetée (DG)
   securitySchemes:
     jwtAuth:
       type: http

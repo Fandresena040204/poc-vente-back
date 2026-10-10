@@ -1,17 +1,13 @@
 from decimal import Decimal
 
 from django.db import models
-from django_fsm import FSMField, transition
 
 from apps.accounts.models import Customer
 from apps.core.models import AuditedModel
 from apps.core.utils import generate_reference
+from apps.ventes.workflow import VENTE_WORKFLOW, VenteStatus
 
-
-class VenteStatus(models.TextChoices):
-    DRAFT = 'draft', 'Brouillon'
-    VALIDATED = 'validated', 'Validée'
-    CANCELLED = 'cancelled', 'Annulée'
+__all__ = ['Vente', 'VenteStatus', 'VentePriority', 'VenteCurrency']
 
 
 class VentePriority(models.TextChoices):
@@ -29,7 +25,11 @@ class VenteCurrency(models.TextChoices):
 class Vente(AuditedModel):
     id = models.CharField(max_length=20, primary_key=True, editable=False)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='ventes')
-    status = FSMField(default=VenteStatus.DRAFT, choices=VenteStatus.choices)
+    # Entier (voir apps/ventes/workflow.py) : les transitions valides sont
+    # vérifiées par `WorkflowMixin` (apps/accounts/workflow.py), pas ici —
+    # ce champ n'est qu'un entier avec des libellés, plus de machine à
+    # états dans le modèle.
+    status = models.IntegerField(default=VenteStatus.CREE, choices=VenteStatus.choices)
     priority = models.CharField(
         max_length=10, choices=VentePriority.choices, default=VentePriority.NORMAL
     )
@@ -50,6 +50,9 @@ class Vente(AuditedModel):
     class Meta:
         db_table = 'vente'
         ordering = ['-created_at']
+        # Dérivées de VENTE_WORKFLOW : une seule source de vérité pour les
+        # permissions de workflow, pas de doublon à tenir à jour à la main.
+        permissions = [(rule['permission'], rule['step']) for rule in VENTE_WORKFLOW]
 
     def save(self, *args, **kwargs):
         if not self.id:
@@ -83,11 +86,3 @@ class Vente(AuditedModel):
         self.save(
             update_fields=['subtotal_ht', 'discount_amount', 'tva_amount', 'total', 'updated_at']
         )
-
-    @transition(field=status, source=VenteStatus.DRAFT, target=VenteStatus.VALIDATED)
-    def validate_vente(self):
-        pass
-
-    @transition(field=status, source=VenteStatus.VALIDATED, target=VenteStatus.CANCELLED)
-    def cancel_vente(self):
-        pass
