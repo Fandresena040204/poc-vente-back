@@ -17,13 +17,10 @@ class VenteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer', 'status', 'priority', 'currency', 'discount_percent',
             'subtotal_ht', 'discount_amount', 'tva_amount', 'total',
-            'expected_delivery_date', 'notes', 'lines',
-            'achat_par', 'achat_le', 'caisse_par', 'caisse_le', 'dg_par', 'dg_le',
-            'created_at', 'updated_at',
+            'expected_delivery_date', 'notes', 'lines', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'status', 'subtotal_ht', 'discount_amount', 'tva_amount', 'total',
-            'achat_par', 'achat_le', 'caisse_par', 'caisse_le', 'dg_par', 'dg_le',
             'created_at', 'updated_at',
         ]
 

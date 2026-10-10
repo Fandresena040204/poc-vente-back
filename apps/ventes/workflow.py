@@ -9,7 +9,12 @@ class VenteStatus(models.IntegerChoices):
     renuméroter. Séparé de `apps.ventes.models.vente` pour que ce fichier
     et `VENTE_WORKFLOW` ci-dessous n'importent jamais le modèle (évite un
     import circulaire : `Vente.Meta.permissions` se construit à partir de
-    `VENTE_WORKFLOW`)."""
+    `VENTE_WORKFLOW`).
+
+    "Qui a validé/rejeté ce niveau, et quand" n'est pas porté par `Vente`
+    elle-même : un changement de `status` est journalisé comme n'importe
+    quelle modification par le journal d'audit général (apps/core/audit.py)
+    — pas besoin d'une colonne `*_par`/`*_le` par niveau."""
 
     CREE = 1, 'Brouillon'
     VALIDE_ACHAT = 3, 'Validée (achat)'
@@ -30,52 +35,46 @@ class VenteStatus(models.IntegerChoices):
 # - 'to' : le statut cible.
 # - 'effet' (optionnel) : chemin(s) de fonction(s) `(vente, user) -> None`
 #   exécutée(s) après le changement de statut, dans la même transaction
-#   (voir apps/ventes/effets.py).
+#   (voir apps/ventes/effets.py). Seule `valider_dg` en a un ici (créer la
+#   livraison) — les autres étapes n'ont besoin que du changement de statut,
+#   déjà journalisé par l'audit général.
 VENTE_WORKFLOW = [
     {
         'step': 'valider_achat',
         'permission': 'validate_achat_vente',
         'from': [VenteStatus.CREE],
         'to': VenteStatus.VALIDE_ACHAT,
-        'effet': 'apps.ventes.effets.enregistrer_achat',
     },
     {
         'step': 'rejeter_achat',
         'permission': 'reject_achat_vente',
         'from': [VenteStatus.CREE],
         'to': VenteStatus.REJETEE_ACHAT,
-        'effet': 'apps.ventes.effets.enregistrer_achat',
     },
     {
         'step': 'valider_caisse',
         'permission': 'validate_caisse_vente',
         'from': [VenteStatus.CREE, VenteStatus.VALIDE_ACHAT],
         'to': VenteStatus.VALIDE_CAISSE,
-        'effet': 'apps.ventes.effets.enregistrer_caisse',
     },
     {
         'step': 'rejeter_caisse',
         'permission': 'reject_caisse_vente',
         'from': [VenteStatus.CREE, VenteStatus.VALIDE_ACHAT],
         'to': VenteStatus.REJETEE_CAISSE,
-        'effet': 'apps.ventes.effets.enregistrer_caisse',
     },
     {
         'step': 'valider_dg',
         'permission': 'validate_dg_vente',
         'from': [VenteStatus.CREE, VenteStatus.VALIDE_ACHAT, VenteStatus.VALIDE_CAISSE],
         'to': VenteStatus.VALIDE_DG,
-        'effet': [
-            'apps.ventes.effets.enregistrer_dg',
-            'apps.ventes.effets.apres_validation_dg',
-        ],
+        'effet': 'apps.ventes.effets.apres_validation_dg',
     },
     {
         'step': 'rejeter_dg',
         'permission': 'reject_dg_vente',
         'from': [VenteStatus.CREE, VenteStatus.VALIDE_ACHAT, VenteStatus.VALIDE_CAISSE],
         'to': VenteStatus.REJETEE_DG,
-        'effet': 'apps.ventes.effets.enregistrer_dg',
     },
     {
         'step': 'annuler',

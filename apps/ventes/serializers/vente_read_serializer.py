@@ -25,9 +25,7 @@ class VenteReadSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer', 'customer_name', 'status', 'priority', 'currency', 'discount_percent',
             'subtotal_ht', 'discount_amount', 'tva_amount', 'total',
-            'expected_delivery_date', 'notes', 'lines',
-            'achat_par', 'achat_le', 'caisse_par', 'caisse_le', 'dg_par', 'dg_le',
-            'allowed_steps', 'created_at', 'updated_at',
+            'expected_delivery_date', 'notes', 'lines', 'allowed_steps', 'created_at', 'updated_at',
         ]
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))

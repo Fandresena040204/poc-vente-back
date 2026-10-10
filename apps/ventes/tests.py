@@ -95,8 +95,8 @@ def test_valider_achat_requires_permission():
     assert vente.status == VenteStatus.CREE
 
 
-def test_valider_achat_success_records_decision():
-    client, achat_user = client_with_role('achat', 'achat_user')
+def test_valider_achat_success():
+    client, _ = client_with_role('achat', 'achat_user')
     vente = VenteFactory(status=VenteStatus.CREE)
 
     response = client.post(f'/api/ventes/{vente.id}/transition/valider_achat/')
@@ -104,8 +104,6 @@ def test_valider_achat_success_records_decision():
     assert response.status_code == 200, response.data
     vente.refresh_from_db()
     assert vente.status == VenteStatus.VALIDE_ACHAT
-    assert vente.achat_par_id == achat_user.id
-    assert vente.achat_le is not None
 
 
 def test_valider_caisse_can_skip_achat():
@@ -117,7 +115,6 @@ def test_valider_caisse_can_skip_achat():
     assert response.status_code == 200, response.data
     vente.refresh_from_db()
     assert vente.status == VenteStatus.VALIDE_CAISSE
-    assert vente.achat_par_id is None  # sautée, pas "validée par personne"
 
 
 def test_achat_cannot_validate_after_caisse_has():
@@ -132,22 +129,21 @@ def test_achat_cannot_validate_after_caisse_has():
 
 
 def test_rejeter_achat_is_terminal():
-    client, achat_user = client_with_role('achat', 'achat_rejects')
+    client, _ = client_with_role('achat', 'achat_rejects')
     vente = VenteFactory(status=VenteStatus.CREE)
 
     response = client.post(f'/api/ventes/{vente.id}/transition/rejeter_achat/')
     assert response.status_code == 200, response.data
     vente.refresh_from_db()
     assert vente.status == VenteStatus.REJETEE_ACHAT
-    assert vente.achat_par_id == achat_user.id
 
     caisse_client, _ = client_with_role('caisse', 'caisse_after_reject')
     response = caisse_client.post(f'/api/ventes/{vente.id}/transition/valider_caisse/')
     assert response.status_code == 400
 
 
-def test_valider_dg_creates_livraison_and_records_decision():
-    client, dg_user = client_with_role('dg', 'dg_user')
+def test_valider_dg_creates_livraison():
+    client, _ = client_with_role('dg', 'dg_user')
     vente = VenteFactory(status=VenteStatus.VALIDE_CAISSE)
 
     response = client.post(f'/api/ventes/{vente.id}/transition/valider_dg/')
@@ -155,8 +151,24 @@ def test_valider_dg_creates_livraison_and_records_decision():
     assert response.status_code == 200, response.data
     vente.refresh_from_db()
     assert vente.status == VenteStatus.VALIDE_DG
-    assert vente.dg_par_id == dg_user.id
     assert vente.livraisons.count() == 1
+
+
+def test_dg_role_inherits_achat_and_caisse_permissions():
+    # Hiérarchie : dg peut valider à n'importe quel niveau, pas seulement
+    # le sien — pas besoin de passer par achat/caisse d'abord.
+    client, _ = client_with_role('dg', 'dg_inherits')
+    vente = VenteFactory(status=VenteStatus.CREE)
+
+    response = client.post(f'/api/ventes/{vente.id}/transition/valider_achat/')
+    assert response.status_code == 200, response.data
+    vente.refresh_from_db()
+    assert vente.status == VenteStatus.VALIDE_ACHAT
+
+    response = client.post(f'/api/ventes/{vente.id}/transition/valider_caisse/')
+    assert response.status_code == 200, response.data
+    vente.refresh_from_db()
+    assert vente.status == VenteStatus.VALIDE_CAISSE
 
 
 def test_allowed_steps_reflects_status_and_permissions():
@@ -172,9 +184,15 @@ def test_allowed_steps_reflects_status_and_permissions():
         'valider_achat', 'rejeter_achat', 'annuler'
     }
     assert dg_response.status_code == 200
-    # Le DG peut sauter achat ET caisse : `valider_dg`/`rejeter_dg` acceptent
-    # déjà CREE comme source (voir VENTE_WORKFLOW).
-    assert set(dg_response.data['allowed_steps']) == {'valider_dg', 'rejeter_dg', 'annuler'}
+    # dg hérite d'achat et de caisse (voir la migration de seed) : il peut
+    # jouer n'importe quelle étape depuis le brouillon, pas seulement la
+    # sienne.
+    assert set(dg_response.data['allowed_steps']) == {
+        'valider_achat', 'rejeter_achat',
+        'valider_caisse', 'rejeter_caisse',
+        'valider_dg', 'rejeter_dg',
+        'annuler',
+    }
 
 
 def test_vente_list_has_no_n_plus_one_queries(api_client):

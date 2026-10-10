@@ -1,11 +1,13 @@
 from drf_spectacular.utils import extend_schema, inline_serializer
-from rest_framework import serializers
+from rest_framework import serializers, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import Permission
-from apps.accounts.permissions import IsAdminRole
+from apps.accounts.permissions import HasRolePermission, IsAdminRole
 from apps.accounts.serializers import CustomerSerializer
+from apps.core.models import AuditLog
+from apps.core.serializers import AuditLogSerializer
 from apps.ventes.serializers import (
     LivraisonSerializer,
     PaiementSerializer,
@@ -71,3 +73,15 @@ class PermissionsMetaView(APIView):
             {'app_label': app, 'model': model, 'codenames': codenames}
             for (app, model), codenames in grouped.items()
         ])
+
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """Lecture seule (`apps.core.models.AuditLog` n'a pas d'API d'écriture)
+    — `view_auditlog`, comme n'importe quel autre modèle (voir
+    `HasRolePermission`)."""
+
+    serializer_class = AuditLogSerializer
+    permission_classes = [HasRolePermission]
+    queryset = AuditLog.objects.all()
+    filterset_fields = ['actor', 'entity_type', 'action']
+    ordering_fields = ['occurred_at']

@@ -1,23 +1,25 @@
 # Crée les permissions de VENTE_WORKFLOW (apps/ventes/workflow.py) si le
 # signal post_migrate ne l'a pas encore fait (il ne tourne qu'à la toute
 # fin d'une commande `migrate`, après cette migration), et les attache aux
-# rôles. Achat et caisse valident/rejettent tous les deux l'étape achat
-# ("achat doit aussi valider" + caisse peut sauter l'achat) ; dg la sienne ;
-# admin garde tout. cancel_vente (brouillon) est ouvert à toute la chaîne.
+# rôles. Hiérarchie cumulative (un rôle a aussi les permissions des rôles
+# en dessous) : achat < caisse < dg < admin. caisse peut donc valider/
+# rejeter l'achat à sa place (saut), dg peut valider/rejeter l'achat ET la
+# caisse, admin a tout. cancel_vente (brouillon) est ouvert à toute la
+# chaîne.
 from django.db import migrations
 
 from apps.core.utils import generate_reference
 from apps.ventes.workflow import VENTE_WORKFLOW
 
+ACHAT_PERMS = ['validate_achat_vente', 'reject_achat_vente']
+CAISSE_PERMS = ACHAT_PERMS + ['validate_caisse_vente', 'reject_caisse_vente']
+DG_PERMS = CAISSE_PERMS + ['validate_dg_vente', 'reject_dg_vente']
+
 ROLE_GRANTS = {
     'admin': [rule['permission'] for rule in VENTE_WORKFLOW],
-    'achat': ['validate_achat_vente', 'reject_achat_vente', 'cancel_vente'],
-    'caisse': [
-        'validate_achat_vente', 'reject_achat_vente',
-        'validate_caisse_vente', 'reject_caisse_vente',
-        'cancel_vente',
-    ],
-    'dg': ['validate_dg_vente', 'reject_dg_vente', 'cancel_vente'],
+    'achat': ACHAT_PERMS + ['cancel_vente'],
+    'caisse': CAISSE_PERMS + ['cancel_vente'],
+    'dg': DG_PERMS + ['cancel_vente'],
 }
 
 

@@ -11,10 +11,9 @@ class VenteListView(models.Model):
 
     `status` is a plain integer (see `apps.ventes.workflow.VenteStatus`) —
     matches the real `vente.status` column 1:1, this view just selects it.
-
-    `*_par`/`*_le` mirror `Vente`'s own workflow decision columns (who
-    validated/rejected each level, and when — NULL means not reached yet,
-    or skipped by a higher level). This model is never saved, so it has no
+    "Who validated/rejected which level, and when" isn't a column anywhere
+    — it's in the general audit log (apps/core/audit.py) as a diff on
+    `status`, not duplicated here. This model is never saved, so it has no
     need for (and shouldn't carry) any transition machinery.
     """
 
@@ -32,12 +31,6 @@ class VenteListView(models.Model):
     expected_delivery_date = models.DateField(null=True)
     notes = models.TextField()
     created_by = models.CharField(max_length=20, null=True)
-    achat_par = models.CharField(max_length=20, null=True)
-    achat_le = models.DateTimeField(null=True)
-    caisse_par = models.CharField(max_length=20, null=True)
-    caisse_le = models.DateTimeField(null=True)
-    dg_par = models.CharField(max_length=20, null=True)
-    dg_le = models.DateTimeField(null=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
 

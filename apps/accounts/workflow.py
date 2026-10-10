@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions.has_role_permission import HasRolePermission
+from apps.core.audit import log_workflow_action
 
 
 def find_rule(workflow, step):
@@ -84,6 +85,10 @@ class WorkflowMixin:
             setattr(obj, self.status_field, rule['to'])
             obj.save(update_fields=[self.status_field, 'updated_at'])
             run_effects(rule.get('effet'), obj, request.user)
+            # Entrée dédiée en plus du diff `update` que le journal général
+            # écrit déjà pour le changement de `status` (apps/core/audit.py)
+            # — celle-ci porte le nom de l'étape jouée.
+            log_workflow_action(request.user, obj, step)
 
         obj.refresh_from_db()
         serializer = self.get_serializer(obj)

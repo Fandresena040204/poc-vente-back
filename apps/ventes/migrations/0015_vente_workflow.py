@@ -4,41 +4,10 @@
 # de la colonne, donc on la supprime et on la recrée dans le même bloc SQL,
 # plutôt qu'en opérations séparées — garde l'ordre correct à l'aller comme
 # au retour).
-import django.db.models.deletion
-from django.conf import settings
 from django.db import migrations, models
 
 
-VIEW_SQL_INT_STATUS = """
-    CREATE VIEW vente_list_view AS
-    SELECT
-        v.id,
-        v.customer_id AS customer,
-        c.name AS customer_name,
-        v.status,
-        v.priority,
-        v.currency,
-        v.discount_percent,
-        v.subtotal_ht,
-        v.discount_amount,
-        v.tva_amount,
-        v.total,
-        v.expected_delivery_date,
-        v.notes,
-        v.created_by_id AS created_by,
-        v.achat_par_id AS achat_par,
-        v.achat_le,
-        v.caisse_par_id AS caisse_par,
-        v.caisse_le,
-        v.dg_par_id AS dg_par,
-        v.dg_le,
-        v.created_at,
-        v.updated_at
-    FROM vente v
-    INNER JOIN customer c ON c.id = v.customer_id;
-"""
-
-VIEW_SQL_TEXT_STATUS = """
+VIEW_SQL = """
     CREATE VIEW vente_list_view AS
     SELECT
         v.id,
@@ -65,7 +34,6 @@ VIEW_SQL_TEXT_STATUS = """
 class Migration(migrations.Migration):
     dependencies = [
         ('ventes', '0014_bon_commande_ligne_list_view_view'),
-        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
@@ -84,39 +52,6 @@ class Migration(migrations.Migration):
                 ],
             },
         ),
-        migrations.AddField(
-            model_name='vente',
-            name='achat_par',
-            field=models.ForeignKey(
-                blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
-                related_name='+', to=settings.AUTH_USER_MODEL,
-            ),
-        ),
-        migrations.AddField(
-            model_name='vente', name='achat_le', field=models.DateTimeField(blank=True, null=True)
-        ),
-        migrations.AddField(
-            model_name='vente',
-            name='caisse_par',
-            field=models.ForeignKey(
-                blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
-                related_name='+', to=settings.AUTH_USER_MODEL,
-            ),
-        ),
-        migrations.AddField(
-            model_name='vente', name='caisse_le', field=models.DateTimeField(blank=True, null=True)
-        ),
-        migrations.AddField(
-            model_name='vente',
-            name='dg_par',
-            field=models.ForeignKey(
-                blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
-                related_name='+', to=settings.AUTH_USER_MODEL,
-            ),
-        ),
-        migrations.AddField(
-            model_name='vente', name='dg_le', field=models.DateTimeField(blank=True, null=True)
-        ),
         migrations.SeparateDatabaseAndState(
             database_operations=[
                 migrations.RunSQL(
@@ -132,7 +67,7 @@ class Migration(migrations.Migration):
                             END
                         );
                         ALTER TABLE vente ALTER COLUMN status SET DEFAULT 1;
-                        {VIEW_SQL_INT_STATUS}
+                        {VIEW_SQL}
                     """,
                     reverse_sql=f"""
                         DROP VIEW IF EXISTS vente_list_view;
@@ -146,7 +81,7 @@ class Migration(migrations.Migration):
                             END
                         );
                         ALTER TABLE vente ALTER COLUMN status SET DEFAULT 'draft';
-                        {VIEW_SQL_TEXT_STATUS}
+                        {VIEW_SQL}
                     """,
                 ),
             ],

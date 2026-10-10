@@ -4,6 +4,98 @@ info:
   version: 1.0.0
   description: Ventes/accounts API — schema feeds pagekit-showcase TS type generation.
 paths:
+  /api/audit-logs/:
+    get:
+      operationId: audit_logs_list
+      description: |-
+        Lecture seule (`apps.core.models.AuditLog` n'a pas d'API d'écriture)
+        — `view_auditlog`, comme n'importe quel autre modèle (voir
+        `HasRolePermission`).
+      parameters:
+      - in: query
+        name: action
+        schema:
+          type: string
+          enum:
+          - create
+          - delete
+          - login
+          - update
+          - workflow
+        description: |-
+          * `login` - Connexion
+          * `create` - Création
+          * `update` - Modification
+          * `delete` - Suppression
+          * `workflow` - Action de workflow
+      - in: query
+        name: actor
+        schema:
+          type: string
+      - in: query
+        name: entity_type
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Quel champ utiliser pour classer les résultats.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: Un numéro de page de l'ensemble des résultats.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Nombre de résultats à retourner par page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: Un terme de recherche.
+        schema:
+          type: string
+      tags:
+      - audit-logs
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAuditLogList'
+          description: ''
+  /api/audit-logs/{id}/:
+    get:
+      operationId: audit_logs_retrieve
+      description: |-
+        Lecture seule (`apps.core.models.AuditLog` n'a pas d'API d'écriture)
+        — `view_auditlog`, comme n'importe quel autre modèle (voir
+        `HasRolePermission`).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un(une) valeur entière unique identifiant ce(cette) audit log.
+        required: true
+      tags:
+      - audit-logs
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+          description: ''
   /api/auth/me/:
     get:
       operationId: auth_me_retrieve
@@ -1529,8 +1621,9 @@ paths:
     post:
       operationId: token_create
       description: |-
-        Takes a set of user credentials and returns an access and refresh JSON web
-        token pair to prove the authentication of those credentials.
+        Même comportement que `TokenObtainPairView`, en plus d'une entrée
+        `AuditLog` sur une connexion réussie — `login_failed` n'est volontairement
+        pas journalisé (décision prise avec l'équipe).
       tags:
       - token
       requestBody:
@@ -2104,6 +2197,62 @@ paths:
           description: ''
 components:
   schemas:
+    ActionEnum:
+      enum:
+      - login
+      - create
+      - update
+      - delete
+      - workflow
+      type: string
+      description: |-
+        * `login` - Connexion
+        * `create` - Création
+        * `update` - Modification
+        * `delete` - Suppression
+        * `workflow` - Action de workflow
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        occurred_at:
+          type: string
+          format: date-time
+          readOnly: true
+        actor:
+          type: string
+          nullable: true
+        actor_username:
+          type: string
+          maxLength: 150
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+        action_name:
+          type: string
+          maxLength: 100
+        entity_type:
+          type: string
+          maxLength: 100
+        entity_id:
+          type: string
+          maxLength: 50
+        changes: {}
+        result:
+          type: string
+          maxLength: 10
+        method:
+          type: string
+          maxLength: 10
+        path:
+          type: string
+          maxLength: 255
+      required:
+      - action
+      - entity_type
+      - id
+      - occurred_at
     BonCommande:
       type: object
       properties:
@@ -2388,6 +2537,29 @@ components:
         * `cash` - Espèces
         * `card` - Carte
         * `transfer` - Virement
+    PaginatedAuditLogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
     PaginatedBonCommandeReadList:
       type: object
       required:
@@ -2960,33 +3132,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/VenteLigne'
-        achat_par:
-          type: string
-          readOnly: true
-          nullable: true
-        achat_le:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
-        caisse_par:
-          type: string
-          readOnly: true
-          nullable: true
-        caisse_le:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
-        dg_par:
-          type: string
-          readOnly: true
-          nullable: true
-        dg_le:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
         created_at:
           type: string
           format: date-time
@@ -3327,33 +3472,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/VenteLigne'
-        achat_par:
-          type: string
-          readOnly: true
-          nullable: true
-        achat_le:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
-        caisse_par:
-          type: string
-          readOnly: true
-          nullable: true
-        caisse_le:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
-        dg_par:
-          type: string
-          readOnly: true
-          nullable: true
-        dg_le:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
         created_at:
           type: string
           format: date-time
@@ -3363,14 +3481,8 @@ components:
           format: date-time
           readOnly: true
       required:
-      - achat_le
-      - achat_par
-      - caisse_le
-      - caisse_par
       - created_at
       - customer
-      - dg_le
-      - dg_par
       - discount_amount
       - id
       - lines
@@ -3512,30 +3624,6 @@ components:
           items:
             $ref: '#/components/schemas/VenteLigneRead'
           readOnly: true
-        achat_par:
-          type: string
-          nullable: true
-          maxLength: 20
-        achat_le:
-          type: string
-          format: date-time
-          nullable: true
-        caisse_par:
-          type: string
-          nullable: true
-          maxLength: 20
-        caisse_le:
-          type: string
-          format: date-time
-          nullable: true
-        dg_par:
-          type: string
-          nullable: true
-          maxLength: 20
-        dg_le:
-          type: string
-          format: date-time
-          nullable: true
         allowed_steps:
           type: array
           items:

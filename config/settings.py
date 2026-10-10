@@ -47,6 +47,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Garde une référence à la requête en cours (apps/core/middleware.py)
+    # pour que le journal d'audit (apps/core/audit.py) sache qui a fait une
+    # modification, sans que chaque vue ait besoin de le préciser.
+    'apps.core.middleware.CurrentRequestMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'

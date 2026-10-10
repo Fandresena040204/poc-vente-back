@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from django.conf import settings
 from django.db import models
 
 from apps.accounts.models import Customer
@@ -47,24 +46,6 @@ class Vente(AuditedModel):
     discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     expected_delivery_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
-
-    # Qui a décidé à chaque niveau du workflow (validé ou rejeté — le signe
-    # du statut dit lequel), et quand. NULL = étape pas encore atteinte, ou
-    # sautée par un niveau supérieur (voir apps/ventes/workflow.py). Remplis
-    # par les effets `enregistrer_*` (apps/ventes/effets.py), pas par le
-    # mixin générique.
-    achat_par = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
-    )
-    achat_le = models.DateTimeField(null=True, blank=True)
-    caisse_par = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
-    )
-    caisse_le = models.DateTimeField(null=True, blank=True)
-    dg_par = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
-    )
-    dg_le = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'vente'
