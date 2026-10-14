@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from apps.accounts.models import Permission
 from apps.accounts.permissions import HasRolePermission, IsAdminRole
 from apps.accounts.serializers import CustomerSerializer
+from apps.core.filters import AuditLogFilterSet
 from apps.core.models import AuditLog
 from apps.core.serializers import AuditLogSerializer
 from apps.ventes.serializers import (
@@ -83,6 +84,8 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     serializer_class = AuditLogSerializer
     permission_classes = [HasRolePermission]
-    queryset = AuditLog.objects.all()
-    filterset_fields = ['actor', 'entity_type', 'action']
+    # `-id` départage les entrées écrites au même instant (ex. `update` +
+    # `workflow` d'une même transition).
+    queryset = AuditLog.objects.order_by('-occurred_at', '-id')
+    filterset_class = AuditLogFilterSet
     ordering_fields = ['occurred_at']

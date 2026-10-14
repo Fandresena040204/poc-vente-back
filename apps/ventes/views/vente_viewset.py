@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 
+from apps.accounts.history import HistoryMixin
 from apps.accounts.permissions import HasRolePermission
 from apps.accounts.workflow import WorkflowMixin
 from apps.ventes.filters import VenteFilterSet
@@ -8,7 +9,7 @@ from apps.ventes.serializers import VenteReadSerializer, VenteSerializer
 from apps.ventes.workflow import VENTE_WORKFLOW
 
 
-class VenteViewSet(WorkflowMixin, viewsets.ModelViewSet):
+class VenteViewSet(HistoryMixin, WorkflowMixin, viewsets.ModelViewSet):
     # Stays `VenteSerializer` (not overridden per-action) so
     # `HasRolePermission` — which reads `view.serializer_class.Meta.model`,
     # not `get_serializer_class()` — keeps deriving `{action}_vente`
