@@ -123,7 +123,8 @@ def test_achat_cannot_validate_after_caisse_has():
 
     response = client.post(f'/api/ventes/{vente.id}/transition/valider_achat/')
 
-    assert response.status_code == 400
+    assert response.status_code == 409
+    assert response.data['code'] == 'invalid_transition'
     vente.refresh_from_db()
     assert vente.status == VenteStatus.VALIDE_CAISSE
 
@@ -139,7 +140,8 @@ def test_rejeter_achat_is_terminal():
 
     caisse_client, _ = client_with_role('caisse', 'caisse_after_reject')
     response = caisse_client.post(f'/api/ventes/{vente.id}/transition/valider_caisse/')
-    assert response.status_code == 400
+    assert response.status_code == 409
+    assert response.data['code'] == 'invalid_transition'
 
 
 def test_valider_dg_creates_livraison():
@@ -242,7 +244,8 @@ def test_annuler_requires_draft_status():
 
     response = client.post(f'/api/ventes/{vente.id}/transition/annuler/')
 
-    assert response.status_code == 400
+    assert response.status_code == 409
+    assert response.data['code'] == 'invalid_transition'
 
 
 def test_annuler_success():

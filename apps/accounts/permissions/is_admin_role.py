@@ -4,7 +4,7 @@ ADMIN_ROLE_NAME = 'admin'
 
 
 class IsAdminRole(BasePermission):
-    message = "Necessite le role 'admin'."
+    message = "Cette action est réservée au rôle administrateur."
 
     def has_permission(self, request, view):
         user = request.user

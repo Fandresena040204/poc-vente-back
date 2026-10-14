@@ -7,6 +7,8 @@ from pathlib import Path
 
 import environ
 
+from apps.core.errors import ErrorCode
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
@@ -126,6 +128,7 @@ REST_FRAMEWORK = {
         'user': '1000/day',
         'anon': '100/day',
     },
+    'EXCEPTION_HANDLER': 'apps.core.exception_handler.api_exception_handler',
 }
 
 SIMPLE_JWT = {
@@ -144,4 +147,25 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Ventes/accounts API — schema feeds pagekit-showcase TS type generation.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    # Nom explicite pour l'enum des codes d'erreur (sinon `CodeEnum`).
+    'ENUM_NAME_OVERRIDES': {'ApiErrorCode': [c.value for c in ErrorCode]},
+    'APPEND_COMPONENTS': {
+        'schemas': {
+            'ApiError': {
+                'type': 'object',
+                'required': ['code', 'message', 'champs'],
+                'properties': {
+                    'code': {
+                        'type': 'string',
+                        'enum': [c.value for c in ErrorCode],
+                    },
+                    'message': {'type': 'string'},
+                    'champs': {
+                        'type': 'object',
+                        'additionalProperties': {'type': 'array', 'items': {'type': 'string'}},
+                    },
+                },
+            },
+        },
+    },
 }

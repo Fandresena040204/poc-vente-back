@@ -8,18 +8,19 @@ app métier — il ne lit que `step` / `permission` / `from` / `to` / `effet`.
 from django.db import transaction
 from django.utils.module_loading import import_string
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions.has_role_permission import HasRolePermission
 from apps.core.audit import log_workflow_action
+from apps.core.exceptions import InvalidTransition, UnknownStep
 
 
 def find_rule(workflow, step):
     rule = next((r for r in workflow if r['step'] == step), None)
     if rule is None:
-        raise NotFound(f"Étape de workflow inconnue : {step!r}.")
+        raise UnknownStep(f"Étape de workflow inconnue : « {step} ».")
     return rule
 
 
@@ -73,13 +74,13 @@ class WorkflowMixin:
         rule = find_rule(self.workflow, step)
         model = self._workflow_model()
         if not HasRolePermission._has_codename(request.user, model, rule['permission']):
-            raise PermissionDenied(f"Permission manquante : {rule['permission']}.")
+            raise PermissionDenied(
+                f"Vous n'avez pas le droit d'effectuer l'étape « {step} »."
+            )
 
         current = getattr(obj, self.status_field)
         if current not in rule['from']:
-            return Response(
-                {'detail': "Cette transition n'est pas autorisée depuis l'état actuel."}, status=400
-            )
+            raise InvalidTransition()
 
         with transaction.atomic():
             setattr(obj, self.status_field, rule['to'])

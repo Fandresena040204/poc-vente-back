@@ -1,5 +1,6 @@
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, viewsets
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -36,7 +37,7 @@ class MetaView(APIView):
     def get(self, request, resource):
         serializer_class = RESOURCE_SERIALIZER_MAP.get(resource)
         if serializer_class is None:
-            return Response({'detail': 'Ressource inconnue.'}, status=404)
+            raise NotFound('Ressource inconnue.')
 
         fields_meta = []
         for name, field in serializer_class().fields.items():

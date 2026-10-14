@@ -2236,6 +2236,41 @@ components:
         * `update` - Modification
         * `delete` - Suppression
         * `workflow` - Action de workflow
+    ApiError:
+      type: object
+      required:
+      - code
+      - message
+      - champs
+      properties:
+        code:
+          $ref: '#/components/schemas/ApiErrorCode'
+        message:
+          type: string
+        champs:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+    ApiErrorCode:
+      type: string
+      enum:
+      - validation_error
+      - parse_error
+      - bad_request
+      - not_authenticated
+      - token_invalid
+      - invalid_credentials
+      - permission_denied
+      - not_found
+      - unknown_step
+      - method_not_allowed
+      - invalid_transition
+      - idempotency_in_progress
+      - idempotency_key_reused
+      - throttled
+      - server_error
     AuditLog:
       type: object
       properties:

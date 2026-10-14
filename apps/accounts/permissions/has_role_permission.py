@@ -13,7 +13,7 @@ ACTION_TO_PERMISSION = {
 
 
 class HasRolePermission(BasePermission):
-    message = "Aucun de vos roles ne dispose de la permission requise."
+    message = "Vous n'avez pas la permission nécessaire pour cette action."
     default_custom_action_permission = 'change'
 
     def has_permission(self, request, view):
