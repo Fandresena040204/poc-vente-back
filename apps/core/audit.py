@@ -17,6 +17,8 @@ utilisateur à journaliser.
 from apps.core.middleware import get_current_request
 
 SENSITIVE_FIELDS = {'password'}
+# Changent à chaque sauvegarde : du bruit dans un diff, pas une information.
+IGNORED_FIELDS = {'updated_at', 'created_at'}
 EXCLUDED_MODELS = {('core', 'auditlog')}
 
 
@@ -104,7 +106,7 @@ def log_save(sender, instance, created, **kwargs):
         return
     changes = {}
     for field in sender._meta.fields:
-        if field.name in SENSITIVE_FIELDS:
+        if field.name in SENSITIVE_FIELDS or field.name in IGNORED_FIELDS:
             continue
         new_value = getattr(instance, field.attname)
         old_value = old.get(field.attname)
@@ -131,13 +133,14 @@ def log_delete(sender, instance, **kwargs):
     )
 
 
-def log_workflow_action(user, obj, action_name, result='ok'):
+def log_workflow_action(user, obj, action_name, result='ok', changes=None):
     """Appelé explicitement par `WorkflowMixin.transition`
     (apps/accounts/workflow.py) — une entrée dédiée par étape jouée, en plus
     du diff `update` que `log_save` écrit déjà pour le changement de
-    `status`."""
+    `status`. `changes` optionnel : quand fourni (ex. {status: {old, new}}),
+    l'entrée `workflow` se suffit à elle-même."""
     entity_type = f'{obj._meta.app_label}.{obj._meta.model_name}'
     _write(
         actor=user, action='workflow', action_name=action_name,
-        entity_type=entity_type, entity_id=str(obj.pk), changes={}, result=result,
+        entity_type=entity_type, entity_id=str(obj.pk), changes=changes or {}, result=result,
     )

@@ -33,9 +33,23 @@ paths:
         schema:
           type: string
       - in: query
+        name: entity_id
+        schema:
+          type: string
+      - in: query
         name: entity_type
         schema:
           type: string
+      - in: query
+        name: occurred_after
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: occurred_before
+        schema:
+          type: string
+          format: date-time
       - name: ordering
         required: false
         in: query
@@ -1901,11 +1915,6 @@ paths:
   /api/ventes/:
     get:
       operationId: ventes_list
-      description: |-
-        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-        explicitement.
       parameters:
       - in: query
         name: currency
@@ -2002,11 +2011,6 @@ paths:
           description: ''
     post:
       operationId: ventes_create
-      description: |-
-        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-        explicitement.
       tags:
       - ventes
       requestBody:
@@ -2033,11 +2037,6 @@ paths:
   /api/ventes/{id}/:
     get:
       operationId: ventes_retrieve
-      description: |-
-        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-        explicitement.
       parameters:
       - in: path
         name: id
@@ -2058,11 +2057,6 @@ paths:
           description: ''
     put:
       operationId: ventes_update
-      description: |-
-        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-        explicitement.
       parameters:
       - in: path
         name: id
@@ -2095,11 +2089,6 @@ paths:
           description: ''
     patch:
       operationId: ventes_partial_update
-      description: |-
-        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-        explicitement.
       parameters:
       - in: path
         name: id
@@ -2131,11 +2120,6 @@ paths:
           description: ''
     delete:
       operationId: ventes_destroy
-      description: |-
-        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-        explicitement.
       parameters:
       - in: path
         name: id
@@ -2153,11 +2137,6 @@ paths:
   /api/ventes/{id}/allowed-steps/:
     get:
       operationId: ventes_allowed_steps_retrieve
-      description: |-
-        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-        explicitement.
       parameters:
       - in: path
         name: id
@@ -2176,14 +2155,55 @@ paths:
               schema:
                 $ref: '#/components/schemas/Vente'
           description: ''
+  /api/ventes/{id}/history/:
+    get:
+      operationId: ventes_history_list
+      description: Historique de l'entité, du plus récent au plus ancien.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        description: Un(une) valeur unique identifiant ce(cette) vente.
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Quel champ utiliser pour classer les résultats.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: Un numéro de page de l'ensemble des résultats.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Nombre de résultats à retourner par page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: Un terme de recherche.
+        schema:
+          type: string
+      tags:
+      - ventes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAuditLogList'
+          description: ''
   /api/ventes/{id}/transition/{step}/:
     post:
       operationId: ventes_transition_create
-      description: |-
-        À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-        règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-        réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-        explicitement.
       parameters:
       - in: path
         name: id

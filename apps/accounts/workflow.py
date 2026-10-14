@@ -50,11 +50,12 @@ def run_effects(effet, obj, user):
         import_string(path)(obj, user)
 
 
+# À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de règles)
+# et, si `get_queryset()` ne renvoie pas toujours le modèle réel (ex. une vue
+# de lecture pour `list`/`retrieve`), `workflow_model` explicitement.
+# Commentaire et non docstring : drf-spectacular reprend la docstring des
+# classes parentes comme description de *toutes* les opérations du viewset.
 class WorkflowMixin:
-    """À mélanger dans un `ModelViewSet` : définir `workflow` (la liste de
-    règles) et, si `get_queryset()` ne renvoie pas toujours le modèle
-    réel (ex. une vue de lecture pour `list`/`retrieve`), `workflow_model`
-    explicitement."""
 
     workflow = None
     workflow_model = None
@@ -82,18 +83,35 @@ class WorkflowMixin:
         if current not in rule['from']:
             raise InvalidTransition()
 
+        new_status = rule['to']
         with transaction.atomic():
-            setattr(obj, self.status_field, rule['to'])
+            setattr(obj, self.status_field, new_status)
             obj.save(update_fields=[self.status_field, 'updated_at'])
             run_effects(rule.get('effet'), obj, request.user)
-            # Entrée dédiée en plus du diff `update` que le journal général
-            # écrit déjà pour le changement de `status` (apps/core/audit.py)
-            # — celle-ci porte le nom de l'étape jouée.
-            log_workflow_action(request.user, obj, step)
+            # Entrée dédiée `workflow` avec le changement de statut dans `changes`
+            # — elle se suffit à elle-même, le front n'aura pas à afficher
+            # l'entrée `update` dont le seul changement est `status`.
+            log_workflow_action(
+                request.user, obj, step,
+                changes={self.status_field: {'old': str(current), 'new': str(new_status)}},
+            )
 
-        obj.refresh_from_db()
-        serializer = self.get_serializer(obj)
-        return Response(serializer.data)
+        # Renvoie l'entité telle que `retrieve` la renverrait : même
+        # queryset et même serializer (donc VenteReadSerializer avec
+        # allowed_steps à jour pour la vente). Le mixin reste générique :
+        # il se met dans les conditions de l'action `retrieve` en
+        # refetchant l'objet depuis le queryset de lecture.
+        original_action = self.action
+        self.action = 'retrieve'
+        try:
+            # Re-fetch depuis le queryset de retrieve (ex. VenteListView)
+            # pour avoir les champs joints (customer_name, etc.)
+            retrieve_queryset = self.get_queryset()
+            obj = retrieve_queryset.get(pk=obj.pk)
+            serializer = self.get_serializer(obj)
+            return Response(serializer.data)
+        finally:
+            self.action = original_action
 
     @action(
         detail=True,
